@@ -39,9 +39,11 @@ install_link "$root/config/ghostty/config" "$HOME/.config/ghostty/config"
 install_link "$root/config/cmux/cmux.json" "$HOME/.config/cmux/cmux.json"
 install_link "$root/config/atuin/config.toml" "$HOME/.config/atuin/config.toml"
 install_link "$root/config/git/delta.gitconfig" "$HOME/.config/git/delta.gitconfig"
+install_link "$root/config/harlequin/harlequin.toml" "$HOME/.harlequin.toml"
 
 if [[ "$mode" == "dry-run" ]]; then
   printf 'would add Git include.path: %s\n' "$HOME/.config/git/delta.gitconfig"
+  command -v harlequin >/dev/null 2>&1 || echo "would install Harlequin with the Postgres adapter using uv"
   echo "dry run only; rerun with --apply to make changes"
   exit 0
 fi
@@ -52,5 +54,9 @@ if ! git config --global --get-all include.path | grep -Fxq "$HOME/.config/git/d
   echo "added Git include.path"
 fi
 
-echo "installed; start a new shell and run: cmux reload-config"
+if ! command -v harlequin >/dev/null 2>&1; then
+  command -v uv >/dev/null 2>&1 || { echo "uv is required; run brew bundle first" >&2; exit 1; }
+  uv tool install 'harlequin[postgres]'
+fi
 
+echo "installed; start a new shell and run: cmux reload-config"

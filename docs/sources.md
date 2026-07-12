@@ -17,6 +17,7 @@ Tool descriptions and examples are short paraphrases of canonical documentation.
 | jq | https://github.com/jqlang/jq | MIT; documentation CC BY 3.0 |
 | mikefarah/yq | https://github.com/mikefarah/yq | MIT |
 | Helix | https://github.com/helix-editor/helix | MPL-2.0 |
+| Harlequin | https://github.com/tconbeer/harlequin | MIT |
 | RTK | https://github.com/rtk-ai/rtk | Apache-2.0 |
 
 Agent configuration references:
@@ -26,6 +27,6 @@ Agent configuration references:
 - Claude Code skills: https://code.claude.com/docs/en/skills
 - cmux configuration: https://cmux.com/docs/configuration
 - Ghostty configuration: https://ghostty.org/docs/config
+- Harlequin installation and usage: https://harlequin.sh/docs/getting-started/index
 
 Last reviewed: 2026-07-12.
-

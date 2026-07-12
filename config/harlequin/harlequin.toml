@@ -1,0 +1,7 @@
+# Public-safe local profile. Keep remote hosts and credentials out of this file.
+default_profile = "scratch"
+
+[profiles.scratch]
+adapter = "duckdb"
+limit = 100000
+

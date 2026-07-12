@@ -10,8 +10,8 @@ brew "helix"
 brew "jq"
 brew "ripgrep"
 brew "rtk"
+brew "uv"
 brew "yq"
 brew "zoxide"
 
 cask "cmux"
-
