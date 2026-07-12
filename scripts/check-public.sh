@@ -13,6 +13,7 @@ bash -n install.sh scripts/check-public.sh
 zsh -n config/zsh/terminal-env.zsh config/zsh/terminal-productivity.zsh
 jq empty config/cmux/cmux.json
 python3 -c 'import pathlib, tomllib; tomllib.loads(pathlib.Path("config/atuin/config.toml").read_text())'
+python3 -c 'import pathlib, tomllib; tomllib.loads(pathlib.Path("config/harlequin/harlequin.toml").read_text())'
 
 [[ -f skills/agent-first-audit/SKILL.md ]] || fail "canonical audit skill is missing"
 [[ -f .agents/skills/agent-first-audit/SKILL.md ]] || fail "Codex skill link is broken"

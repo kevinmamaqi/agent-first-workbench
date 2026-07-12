@@ -56,6 +56,7 @@ Both meet at the same boundary: a reviewed specification before implementation a
 - **Navigation:** [ripgrep](https://github.com/BurntSushi/ripgrep), [fd](https://github.com/sharkdp/fd), [fzf](https://github.com/junegunn/fzf), [Zoxide](https://github.com/ajeetdsouza/zoxide), and [Atuin](https://docs.atuin.sh/)
 - **Review:** [Delta](https://github.com/dandavison/delta), [Bat](https://github.com/sharkdp/bat), and [Glow](https://github.com/charmbracelet/glow)
 - **Structured data:** [jq](https://jqlang.org/) + [mikefarah/yq](https://github.com/mikefarah/yq)
+- **Database exploration:** [Harlequin](https://harlequin.sh/) for an interactive SQL workspace in the terminal
 - **Agent context:** `AGENTS.md`, `CLAUDE.md`, skills, and MCP
 - **Concise agent output:** [RTK](https://github.com/rtk-ai/rtk), with `rtk proxy` as the raw-output escape hatch
 
@@ -71,6 +72,7 @@ Those are self-reported estimates, not a benchmark or a correctness claim. The m
 
 - Examples use synthetic paths, hosts, identifiers, and data.
 - Atuin sync is off in the example configuration; history stays local unless you opt in.
+- The public Harlequin profile is local DuckDB only and contains no connection strings or credentials.
 - No database URLs, credentials, shell history, browser state, session logs, or private repository output belong here.
 - Hooks are intentionally not activated by cloning this repository.
 - Run `make check` and inspect the complete Git diff before publishing changes.
