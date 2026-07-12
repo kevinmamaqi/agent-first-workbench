@@ -1,0 +1,17 @@
+brew "atuin"
+brew "bat"
+brew "entr"
+brew "eza"
+brew "fd"
+brew "fzf"
+brew "git-delta"
+brew "glow"
+brew "helix"
+brew "jq"
+brew "ripgrep"
+brew "rtk"
+brew "yq"
+brew "zoxide"
+
+cask "cmux"
+

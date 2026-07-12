@@ -1,0 +1,6 @@
+# Keep visual and keyboard behavior close to Ghostty defaults.
+working-directory = home
+
+# In-memory limit per terminal surface.
+scrollback-limit = 20000000
+

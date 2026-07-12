@@ -1,0 +1,25 @@
+auto_sync = false
+update_check = false
+search_mode = "fuzzy"
+filter_mode = "workspace"
+workspaces = true
+style = "compact"
+inline_height = 18
+show_preview = true
+exit_mode = "return-query"
+enter_accept = false
+secrets_filter = true
+prefers_reduced_motion = true
+
+history_filter = [
+  "(?i)(token|secret|password|api[_-]?key|private[_-]?key|access[_-]?key|bearer)",
+  "gh[pousr]_[A-Za-z0-9_]+",
+  "sk-[A-Za-z0-9_\\-]+"
+]
+
+[search]
+filters = ["workspace", "directory", "session", "global"]
+
+[ui]
+columns = ["duration", { type = "directory", width = 30 }, "command"]
+

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://raw.githubusercontent.com/manaflow-ai/cmux/main/web/data/cmux.schema.json",
+  "schemaVersion": 1,
+  "app": {
+    "confirmQuit": "dirty-only",
+    "openMarkdownInCmuxViewer": true,
+    "openSupportedFilesInCmux": true,
+    "sendAnonymousTelemetry": false,
+    "workspaceInheritWorkingDirectory": true
+  },
+  "automation": {
+    "socketControlMode": "cmuxOnly",
+    "suppressSubagentNotifications": true,
+    "workspaceAutoNaming": true
+  },
+  "browser": {
+    "discardHiddenWebViews": true,
+    "hiddenWebViewDiscardDelaySeconds": 180,
+    "hostsToOpenInEmbeddedBrowser": [
+      "localhost",
+      "*.localhost",
+      "127.0.0.1",
+      "::1"
+    ],
+    "openTerminalLinksInCmuxBrowser": true
+  },
+  "shortcuts": {
+    "bindings": {
+      "commandPalette": "cmd+shift+p",
+      "goToWorkspace": "cmd+p",
+      "newSurface": "cmd+t",
+      "reloadConfiguration": "cmd+shift+,",
+      "splitDown": "cmd+shift+d",
+      "splitRight": "cmd+d",
+      "toggleFileExplorer": "cmd+opt+b",
+      "toggleSidebar": "cmd+b"
+    },
+    "showModifierHoldHints": true
+  },
+  "terminal": {
+    "agentHibernation": {
+      "enabled": true,
+      "idleSeconds": 180,
+      "maxLiveTerminals": 8
+    },
+    "autoResumeAgentSessions": false,
+    "rendererRealization": {
+      "enabled": true,
+      "idleSeconds": 20,
+      "maxWarmRenderers": 8
+    }
+  }
+}
+
