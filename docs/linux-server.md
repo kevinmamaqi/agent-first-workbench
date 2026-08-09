@@ -29,6 +29,9 @@ settings in that account's home. It also registers RTK's global Claude Code Bash
 hook. Kimi's RTK integration is project-scoped; enable it only inside a project
 that should carry those files with `rtk init --agent kimi`.
 
+The Bash profile applies `umask 077`, so new per-account credentials and agent
+artifacts are private by default.
+
 ## Long-running sessions
 
 Start or reattach tmux before launching an agent:
