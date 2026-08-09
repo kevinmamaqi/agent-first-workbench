@@ -9,7 +9,7 @@ fail() {
   exit 1
 }
 
-bash -n install.sh install-linux.sh scripts/check-public.sh config/bash/terminal-env.sh
+bash -n install.sh install-linux.sh install-runtimes-linux.sh scripts/check-public.sh config/bash/terminal-env.sh
 zsh -n config/zsh/terminal-env.zsh config/zsh/terminal-productivity.zsh
 jq empty config/cmux/cmux.json
 jq empty config/agents/claude-settings.json.example

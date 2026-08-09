@@ -23,6 +23,18 @@ On a multi-user server, split the operation so workload users remain non-admin:
 ./install-linux.sh --apply --user-only
 ```
 
+Install the primary language runtimes and code graph separately as the workload
+user:
+
+```bash
+./install-runtimes-linux.sh --dry-run
+./install-runtimes-linux.sh --apply
+```
+
+Defaults are Go 1.26.5, Node 22 and 24 (24 as default), uv-managed Python 3.11
+and 3.13, stable Bun, and `code-review-graph[communities]`. Override the version
+lists with `GO_VERSION`, `NODE_VERSIONS`, `NODE_DEFAULT`, and `PYTHON_VERSIONS`.
+
 The system scope installs shared packages, AWS CLI v2, and account-aware command
 dispatchers. The user scope installs RTK, the three agents, and shell/tmux
 settings in that account's home. It also registers RTK's global Claude Code Bash

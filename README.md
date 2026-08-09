@@ -95,7 +95,11 @@ The same canonical skill is exposed through `.agents/skills/` for Codex and `.cl
 
 ## Scope
 
-The desktop setup is macOS-first and cmux-centered. The Linux profile targets persistent Debian or Ubuntu agent hosts. Both remain personal and opinionated; copy the pieces that solve a problem for you.
+The desktop setup is macOS-first and cmux-centered. The Linux profile targets persistent Debian or Ubuntu agent hosts, with an optional runtime profile for Go, Python, Node.js, Bun, and code-review-graph. Both remain personal and opinionated; copy the pieces that solve a problem for you.
+
+Remote tmux sessions can be mirrored into cmux, so work continues on a server
+after the laptop disconnects. See `docs/remote-workbench.md`; code indexing and
+agent integration are documented in `docs/code-graph.md`.
 
 ## License
 

@@ -33,6 +33,12 @@ Agent configuration references:
 - AWS CLI v2 installation: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
 - AWS IAM Identity Center authentication: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html
 - cmux configuration: https://cmux.com/docs/configuration
+- cmux remote tmux: `cmux ssh-tmux --help`
+- Go installation and release metadata: https://go.dev/doc/install and https://go.dev/dl/?mode=json
+- uv installation and Python management: https://docs.astral.sh/uv/getting-started/installation/ and https://docs.astral.sh/uv/guides/install-python/
+- NVM installation: https://github.com/nvm-sh/nvm
+- Bun installation: https://bun.sh/docs/installation
+- code-review-graph: https://github.com/tirth8205/code-review-graph
 - Ghostty configuration: https://ghostty.org/docs/config
 - Harlequin installation and usage: https://harlequin.sh/docs/getting-started/index
 
