@@ -43,7 +43,7 @@
       "idleSeconds": 180,
       "maxLiveTerminals": 8
     },
-    "autoResumeAgentSessions": false,
+    "autoResumeAgentSessions": true,
     "rendererRealization": {
       "enabled": true,
       "idleSeconds": 20,
@@ -51,4 +51,3 @@
     }
   }
 }
-
