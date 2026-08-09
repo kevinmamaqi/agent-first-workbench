@@ -1,6 +1,6 @@
 # Agent-First Workbench
 
-My opinionated macOS setup for working with coding agents: direct to install, simple to inspect, and built around specs, measurement, diffs, and human review.
+My opinionated macOS and Linux setup for working with coding agents: direct to install, simple to inspect, and built around specs, measurement, diffs, and human review.
 
 Six months ago, most of my coding happened in Cursor. As coding agents became more reliable, my work moved into the terminal and eventually into cmux. I now spend less time opening files and more time writing specs, supervising execution, measuring where agent time goes, reviewing diffs, and deciding whether the result is correct.
 
@@ -17,6 +17,14 @@ cd agent-first-workbench
 brew bundle
 ./install.sh --dry-run
 ./install.sh --apply
+make check
+```
+
+For a persistent Debian or Ubuntu agent host, see [Linux Agent Host](docs/linux-server.md):
+
+```bash
+./install-linux.sh --dry-run
+./install-linux.sh --apply
 make check
 ```
 
@@ -51,7 +59,7 @@ Both meet at the same boundary: a reviewed specification before implementation a
 ## What I Use
 
 - **Workspace:** [cmux](https://github.com/manaflow-ai/cmux) + [Ghostty](https://github.com/ghostty-org/ghostty)
-- **Agents:** Claude Code + Codex
+- **Agents:** Claude Code + Codex + Kimi Code
 - **Editing:** [Helix](https://helix-editor.com/) and Vim-style interaction
 - **Navigation:** [ripgrep](https://github.com/BurntSushi/ripgrep), [fd](https://github.com/sharkdp/fd), [fzf](https://github.com/junegunn/fzf), [Zoxide](https://github.com/ajeetdsouza/zoxide), and [Atuin](https://docs.atuin.sh/)
 - **Review:** [Delta](https://github.com/dandavison/delta), [Bat](https://github.com/sharkdp/bat), and [Glow](https://github.com/charmbracelet/glow)
@@ -87,7 +95,7 @@ The same canonical skill is exposed through `.agents/skills/` for Codex and `.cl
 
 ## Scope
 
-This setup is macOS-first, cmux-centered, personal, and opinionated. Copy the pieces that solve a problem for you.
+The desktop setup is macOS-first and cmux-centered. The Linux profile targets persistent Debian or Ubuntu agent hosts. Both remain personal and opinionated; copy the pieces that solve a problem for you.
 
 ## License
 

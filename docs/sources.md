@@ -19,14 +19,21 @@ Tool descriptions and examples are short paraphrases of canonical documentation.
 | Helix | https://github.com/helix-editor/helix | MPL-2.0 |
 | Harlequin | https://github.com/tconbeer/harlequin | MIT |
 | RTK | https://github.com/rtk-ai/rtk | Apache-2.0 |
+| Kimi Code | https://github.com/MoonshotAI/kimi-code | MIT |
 
 Agent configuration references:
 
 - Codex customization: https://developers.openai.com/codex/concepts/customization
+- Codex Linux installer and environment: https://learn.chatgpt.com/docs/config-file/environment-variables
+- Claude Code setup: https://code.claude.com/docs/en/setup
 - Claude Code memory/instructions: https://code.claude.com/docs/en/memory
 - Claude Code skills: https://code.claude.com/docs/en/skills
+- Kimi Code: https://github.com/MoonshotAI/kimi-code
+- GitHub CLI authentication: https://cli.github.com/manual/gh_auth_login
+- AWS CLI v2 installation: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+- AWS IAM Identity Center authentication: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html
 - cmux configuration: https://cmux.com/docs/configuration
 - Ghostty configuration: https://ghostty.org/docs/config
 - Harlequin installation and usage: https://harlequin.sh/docs/getting-started/index
 
-Last reviewed: 2026-07-12.
+Last reviewed: 2026-08-09.

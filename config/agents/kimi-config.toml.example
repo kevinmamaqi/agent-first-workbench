@@ -1,0 +1,15 @@
+# Merge selected preferences into Kimi's generated config after the first login.
+# Provider definitions, API keys, OAuth state, services, and MCP credentials are
+# machine-local and intentionally excluded.
+
+default_thinking = false
+default_yolo = false
+default_plan_mode = false
+theme = "dark"
+telemetry = false
+
+[background]
+max_running_tasks = 4
+keep_alive_on_exit = false
+agent_task_timeout_s = 900
+
