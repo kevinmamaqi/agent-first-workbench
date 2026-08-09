@@ -126,6 +126,12 @@ if [[ "$scope" != "user" ]]; then
   install_dispatcher codex '.local/bin/codex'
   install_dispatcher claude '.local/bin/claude'
   install_dispatcher kimi '.kimi-code/bin/kimi'
+  install_dispatcher uv '.local/bin/uv'
+  install_dispatcher uvx '.local/bin/uvx'
+  install_dispatcher go '.local/go/bin/go'
+  install_dispatcher bun '.bun/bin/bun'
+  install_dispatcher code-review-graph '.local/bin/code-review-graph'
+  install_dispatcher crg-daemon '.local/bin/crg-daemon'
 fi
 
 if [[ "$scope" != "system" ]]; then
