@@ -108,7 +108,7 @@ install_aws_cli() {
 
 packages=(
   build-essential ca-certificates curl fd-find gh git gnupg htop jq
-  pkg-config ripgrep rsync sqlite3 tmux tree unzip zip
+  pkg-config python3 ripgrep rsync sqlite3 tmux tree unzip zip zsh
 )
 
 if [[ "$scope" != "user" ]]; then
