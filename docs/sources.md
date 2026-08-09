@@ -34,6 +34,7 @@ Agent configuration references:
 - AWS IAM Identity Center authentication: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html
 - cmux configuration: https://cmux.com/docs/configuration
 - cmux remote tmux: `cmux ssh-tmux --help`
+- cmux getting started and session restore: https://cmux.com/docs/getting-started and https://cmux.com/docs/session-restore
 - Go installation and release metadata: https://go.dev/doc/install and https://go.dev/dl/?mode=json
 - uv installation and Python management: https://docs.astral.sh/uv/getting-started/installation/ and https://docs.astral.sh/uv/guides/install-python/
 - NVM installation: https://github.com/nvm-sh/nvm
