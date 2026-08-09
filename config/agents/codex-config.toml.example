@@ -1,0 +1,11 @@
+# Copy selected preferences into ~/.codex/config.toml.
+# Authentication, project trust entries, absolute paths, hooks, plugins, and MCP
+# servers are machine-local and intentionally excluded.
+
+model_reasoning_effort = "high"
+personality = "pragmatic"
+
+[features]
+hooks = true
+plugin_hooks = true
+

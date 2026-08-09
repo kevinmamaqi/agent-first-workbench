@@ -9,11 +9,14 @@ fail() {
   exit 1
 }
 
-bash -n install.sh scripts/check-public.sh
+bash -n install.sh install-linux.sh scripts/check-public.sh config/bash/terminal-env.sh
 zsh -n config/zsh/terminal-env.zsh config/zsh/terminal-productivity.zsh
 jq empty config/cmux/cmux.json
+jq empty config/agents/claude-settings.json.example
 python3 -c 'import pathlib, tomllib; tomllib.loads(pathlib.Path("config/atuin/config.toml").read_text())'
 python3 -c 'import pathlib, tomllib; tomllib.loads(pathlib.Path("config/harlequin/harlequin.toml").read_text())'
+python3 -c 'import pathlib, tomllib; tomllib.loads(pathlib.Path("config/agents/codex-config.toml.example").read_text())'
+python3 -c 'import pathlib, tomllib; tomllib.loads(pathlib.Path("config/agents/kimi-config.toml.example").read_text())'
 
 [[ -f skills/agent-first-audit/SKILL.md ]] || fail "canonical audit skill is missing"
 [[ -f .agents/skills/agent-first-audit/SKILL.md ]] || fail "Codex skill link is broken"
