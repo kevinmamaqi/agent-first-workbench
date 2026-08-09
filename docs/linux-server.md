@@ -25,7 +25,9 @@ On a multi-user server, split the operation so workload users remain non-admin:
 
 The system scope installs shared packages, AWS CLI v2, and account-aware command
 dispatchers. The user scope installs RTK, the three agents, and shell/tmux
-settings in that account's home.
+settings in that account's home. It also registers RTK's global Claude Code Bash
+hook. Kimi's RTK integration is project-scoped; enable it only inside a project
+that should carry those files with `rtk init --agent kimi`.
 
 ## Long-running sessions
 

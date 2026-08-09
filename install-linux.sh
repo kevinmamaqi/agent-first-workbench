@@ -140,6 +140,7 @@ if [[ "$scope" != "system" ]]; then
     'curl -fsSL https://claude.ai/install.sh | bash'
   install_agent "Kimi Code" \
     'curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash'
+  run "$HOME/.local/bin/rtk" init -g --agent claude --hook-only --auto-patch
 fi
 
 if [[ "$mode" == "dry-run" ]]; then
