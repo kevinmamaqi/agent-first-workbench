@@ -42,3 +42,26 @@ Graphify remains useful when a project genuinely needs one graph spanning code,
 PDFs, images, and other documents. Do not run two overlapping code indexes by
 default; compare them on a bounded repository with the same questions and token
 budget first.
+
+For a multi-repository host, register, fully build, and watch repositories with:
+
+```bash
+./scripts/build-code-graphs.sh --daemon \
+  backend=/path/to/backend \
+  web=/path/to/web
+```
+
+The full build is intentionally explicit and may be long-running. Run it inside
+tmux on a persistent host. Subsequent changes are handled incrementally by
+`crg-daemon`.
+
+Keep the watcher running after logout and reboot with the user service:
+
+```bash
+./scripts/install-code-graph-service.sh --dry-run
+./scripts/install-code-graph-service.sh --apply
+```
+
+An administrator must also run `loginctl enable-linger <account>` once. The
+service uses `crg-daemon start --foreground` so systemd owns and restarts the
+watch process.
