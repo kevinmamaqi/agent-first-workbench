@@ -46,8 +46,9 @@ run_once() (
   options_file="$(mktemp)"
   requests_file="$(mktemp)"
   workspaces_file="$(mktemp)"
+  session_map_file="$(mktemp)"
   attention_file="$(mktemp)"
-  trap 'rm -f -- "$options_file" "$requests_file" "$workspaces_file" "$attention_file"' EXIT
+  trap 'rm -f -- "$options_file" "$requests_file" "$workspaces_file" "$session_map_file" "$attention_file"' EXIT
   ssh_options > "$options_file"
 
   ssh_arguments=()
@@ -59,13 +60,42 @@ run_once() (
     'find "$HOME/.local/state/workbench-open/requests" -maxdepth 1 -type f -printf "%f\n" 2>/dev/null | sort' \
     > "$requests_file" || return 1
   cmux workspace list --json > "$workspaces_file" || return 1
+  ssh -n "${ssh_arguments[@]}" "$destination" '
+    tmux list-sessions -F "#{session_name}" 2>/dev/null |
+      while IFS= read -r session; do
+        workspace="$(tmux show-environment -t "$session" WORKBENCH_WORKSPACE 2>/dev/null |
+          sed -n "s/^WORKBENCH_WORKSPACE=//p")"
+        task="$session"
+        if [ -n "$workspace" ]; then
+          prefix="REMOTE-$workspace-"
+          if [ "$session" = "REMOTE-$workspace" ]; then
+            task="$workspace"
+          else
+            case "$session" in
+              "$prefix"*) task="${session#"$prefix"}" ;;
+            esac
+          fi
+        fi
+        printf "%s|%s\n" "$session" "$task"
+      done
+  ' > "$session_map_file" || return 1
 
   attention_state_dir="$state_root/attention-$account"
   install -d -m 700 "$attention_state_dir"
 
   workspace_for_session() {
-    jq -r --arg title "$1" \
-      '.workspaces[] | select((.title // .name) == $title) | (.ref // .id)' \
+    lookup_session="$1"
+    lookup_task="$(awk -F '|' -v session="$lookup_session" '$1 == session { print $2; exit }' "$session_map_file")"
+    lookup_spaced="${lookup_task//-/ }"
+    jq -r \
+      --arg session "$lookup_session" \
+      --arg task "$lookup_task" \
+      --arg spaced "$lookup_spaced" \
+      '.workspaces[] |
+       select(((.title // .name) == $session) or
+              (($task != "") and ((.title // .name) == $task)) or
+              (($spaced != "") and ((.title // .name) == $spaced))) |
+       (.ref // .id)' \
       "$workspaces_file" | head -1
   }
 
@@ -94,19 +124,35 @@ run_once() (
   notify_attention() {
     attention_session="$1"
     attention_source="$2"
-    attention_marker="$attention_state_dir/$attention_session"
-    [[ -e "$attention_marker" ]] && return 0
+    attention_kind="${3:-approval}"
+    attention_marker_name="${4:-}"
+    attention_marker=""
+    if [[ -n "$attention_marker_name" ]]; then
+      attention_marker="$attention_state_dir/$attention_marker_name"
+      [[ -e "$attention_marker" ]] && return 0
+    fi
     attention_workspace_ref="$(workspace_for_session "$attention_session")"
     [[ -n "$attention_workspace_ref" && "$attention_workspace_ref" != "null" ]] || return 1
+    case "$attention_kind" in
+      approval)
+        attention_title="Remote approval needed"
+        attention_body="$attention_source on the server is waiting for your confirmation."
+        ;;
+      complete)
+        attention_title="Remote agent finished"
+        attention_body="$attention_source finished a turn on the server."
+        ;;
+      *) return 1 ;;
+    esac
     cmux notify \
       --workspace "$attention_workspace_ref" \
-      --title "Remote approval needed" \
+      --title "$attention_title" \
       --subtitle "$attention_session" \
-      --body "$attention_source on the server is waiting for your confirmation." >/dev/null || return 1
+      --body "$attention_body" >/dev/null || return 1
     cmux workspace-action \
       --workspace "$attention_workspace_ref" \
       --action mark-unread >/dev/null || true
-    : > "$attention_marker"
+    [[ -z "$attention_marker" ]] || : > "$attention_marker"
   }
 
   while IFS= read -r request; do
@@ -151,8 +197,14 @@ run_once() (
         fi
         ;;
       attention)
-        [[ "$remote_path" =~ ^(codex|claude|kimi)$ ]] || continue
-        notify_attention "$session" "$remote_path" && handled=true
+        [[ "$remote_path" =~ ^(codex|claude|kimi)(:(approval|complete))?$ ]] || continue
+        attention_source="${remote_path%%:*}"
+        if [[ "$remote_path" == *:* ]]; then
+          attention_kind="${remote_path#*:}"
+        else
+          attention_kind="approval"
+        fi
+        notify_attention "$session" "$attention_source" "$attention_kind" && handled=true
         ;;
       *) continue ;;
     esac
@@ -178,12 +230,14 @@ run_once() (
 
   while IFS= read -r attention_session; do
     [[ "$attention_session" =~ ^[A-Za-z0-9_.\ -]+$ ]] || continue
-    notify_attention "$attention_session" "Codex" || true
+    notify_attention "$attention_session" "Codex" "approval" "fallback-$attention_session" || true
   done < "$attention_file"
 
   for attention_marker in "$attention_state_dir"/*; do
     [[ -e "$attention_marker" ]] || continue
     marker_session="${attention_marker##*/}"
+    [[ "$marker_session" == fallback-* ]] || { rm -f -- "$attention_marker"; continue; }
+    marker_session="${marker_session#fallback-}"
     grep -Fxq -- "$marker_session" "$attention_file" || rm -f -- "$attention_marker"
   done
 )
@@ -200,7 +254,7 @@ case "$command_name" in
     run_once "$account"
     ;;
   watch)
-    unset CMUX_WORKSPACE_ID CMUX_SURFACE_ID CMUX_SOCKET_PATH
+    unset CMUX_WORKSPACE_ID CMUX_SURFACE_ID
     printf '%s\n' "$$" > "$pid_file"
     trap 'rm -f -- "$pid_file"' EXIT INT TERM
     while true; do

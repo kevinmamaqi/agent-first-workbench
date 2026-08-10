@@ -74,8 +74,17 @@ click or submit forms in the local browser. Requests remain queued while the
 Mac is asleep and are handled after reconnecting. Markdown is snapshot review,
 not bidirectional file synchronization.
 
-Codex `PermissionRequest`, Claude `permission_prompt`, and Kimi `Notification`
-hooks use the same queue for exact approval alerts. The bridge also detects the
-standard Codex approval modal for sessions that were already running when hooks
-were installed. Notifications contain only the workload/session label; prompt
-text stays on the server.
+Codex `PermissionRequest` and `Stop`, Claude `permission_prompt`, and Kimi
+`Notification` hooks use the same queue. Codex alerts distinguish an approval
+prompt from a completed turn. The bridge also detects the standard Codex
+approval modal for sessions that were already running when hooks were installed.
+Notifications contain only the workload/session label and event kind; prompt
+text stays on the server. The bridge keeps the cmux socket inherited from the
+native Mac workspace and maps durable tmux names back to their shorter cmux
+workspace titles without focusing either workspace.
+
+For remote agents that create sibling Git worktrees, keep Codex in
+`workspace-write`, add the workload account's repository root as a writable
+root, and enable automatic approval review. This avoids repeated file-edit and
+build-cache prompts while retaining the sandbox; do not replace it with
+`danger-full-access` merely for convenience.
