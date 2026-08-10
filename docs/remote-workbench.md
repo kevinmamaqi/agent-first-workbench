@@ -32,3 +32,17 @@ remote tmux preserves the actual server process.
 Keep real hosts, account names, identity paths, and repository mappings in a
 private overlay. A private helper may create a named remote tmux session before
 asking cmux to mirror the host.
+
+The included `work` launcher preserves a short terminal rhythm while
+making location unmistakable. Remote is the default:
+
+```bash
+work project                 # REMOTE-project; reconnects if it exists
+work project --agent codex   # create it and start Codex
+work --local project         # LOCAL-project
+```
+
+Aliases resolve through a private `workspaces.conf`. A remote alias creates a
+tmux session in its mapped directory and mirrors it into the cmux sidebar.
+After opening the workspace, `claude`, `codex`, `kimi`, and their resume
+commands work exactly as they do in a local shell.

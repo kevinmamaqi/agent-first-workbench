@@ -101,6 +101,18 @@ Remote tmux sessions can be mirrored into cmux, so work continues on a server
 after the laptop disconnects. See `docs/remote-workbench.md`; code indexing and
 agent integration are documented in `docs/code-graph.md`.
 
+The `work` launcher keeps that remote flow as short as a local one:
+
+```bash
+work project                 # REMOTE-project; reconnects if it exists
+work project --agent claude  # optionally start an agent immediately
+work --local project         # LOCAL-project
+```
+
+Real workspace aliases, hosts, accounts, and paths live only in a private
+`~/.config/agent-first-workbench/workspaces.conf`; start from the sanitized
+`config/workspaces.conf.example`.
+
 ## License
 
 Original content in this repository is available under the [MIT License](LICENSE). Named tools remain governed by their upstream licenses.

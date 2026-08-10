@@ -40,6 +40,7 @@ install_link "$root/config/cmux/cmux.json" "$HOME/.config/cmux/cmux.json"
 install_link "$root/config/atuin/config.toml" "$HOME/.config/atuin/config.toml"
 install_link "$root/config/git/delta.gitconfig" "$HOME/.config/git/delta.gitconfig"
 install_link "$root/config/harlequin/harlequin.toml" "$HOME/.harlequin.toml"
+install_link "$root/bin/workbench-session" "$HOME/.local/bin/work"
 
 if [[ "$mode" == "dry-run" ]]; then
   printf 'would add Git include.path: %s\n' "$HOME/.config/git/delta.gitconfig"
