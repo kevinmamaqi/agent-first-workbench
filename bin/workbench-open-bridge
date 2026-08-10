@@ -52,7 +52,8 @@ run_once() (
   workspaces_file="$(mktemp)"
   session_map_file="$(mktemp)"
   attention_file="$(mktemp)"
-  trap 'rm -f -- "$options_file" "$requests_file" "$workspaces_file" "$session_map_file" "$attention_file"' EXIT
+  complete_file="$(mktemp)"
+  trap 'rm -f -- "$options_file" "$requests_file" "$workspaces_file" "$session_map_file" "$attention_file" "$complete_file"' EXIT
   ssh_options > "$options_file"
 
   ssh_arguments=()
@@ -240,12 +241,42 @@ run_once() (
     notify_attention "$attention_session" "Codex" "approval" "fallback-$attention_session" || true
   done < "$attention_file"
 
+  # Existing Codex processes cannot reload a newly installed Stop hook. Detect
+  # their stable idle composer remotely and return only the session name. Pane
+  # content never crosses the SSH boundary.
+  ssh -n "${ssh_arguments[@]}" "$destination" '
+    tmux list-panes -a -F "#{session_name}|#{pane_id}" 2>/dev/null |
+      while IFS="|" read -r session pane; do
+        pane_text="$(tmux capture-pane -p -t "$pane" -S -100 2>/dev/null)"
+        tail_text="$(printf "%s\n" "$pane_text" | tail -n 10)"
+        if printf "%s\n" "$pane_text" | grep -q "^─ Worked for" &&
+           printf "%s\n" "$tail_text" | grep -q "^› " &&
+           ! printf "%s\n" "$tail_text" |
+             grep -Eq "Working \(|Running |Would you like to |Press enter to confirm"; then
+          printf "%s\n" "$session"
+        fi
+      done | sort -u
+  ' > "$complete_file" || true
+
+  while IFS= read -r complete_session; do
+    [[ "$complete_session" =~ ^[A-Za-z0-9_.\ -]+$ ]] || continue
+    notify_attention "$complete_session" "Codex" "complete" "complete-$complete_session" || true
+  done < "$complete_file"
+
   for attention_marker in "$attention_state_dir"/*; do
     [[ -e "$attention_marker" ]] || continue
     marker_session="${attention_marker##*/}"
-    [[ "$marker_session" == fallback-* ]] || { rm -f -- "$attention_marker"; continue; }
-    marker_session="${marker_session#fallback-}"
-    grep -Fxq -- "$marker_session" "$attention_file" || rm -f -- "$attention_marker"
+    case "$marker_session" in
+      fallback-*)
+        marker_session="${marker_session#fallback-}"
+        grep -Fxq -- "$marker_session" "$attention_file" || rm -f -- "$attention_marker"
+        ;;
+      complete-*)
+        marker_session="${marker_session#complete-}"
+        grep -Fxq -- "$marker_session" "$complete_file" || rm -f -- "$attention_marker"
+        ;;
+      *) rm -f -- "$attention_marker" ;;
+    esac
   done
 )
 
@@ -263,7 +294,9 @@ case "$command_name" in
   watch)
     unset CMUX_WORKSPACE_ID CMUX_SURFACE_ID
     printf '%s\n' "$$" > "$pid_file"
-    trap 'rm -f -- "$pid_file"' EXIT INT TERM
+    trap 'rm -f -- "$pid_file"' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
     while true; do
       run_once "$account" >> "$log_file" 2>&1 || true
       sleep "${WORKBENCH_BRIDGE_INTERVAL_SECONDS:-3}"
