@@ -1,6 +1,7 @@
 # Copy selected preferences into ~/.codex/config.toml.
-# Authentication, project trust entries, absolute paths, hooks, plugins, and MCP
-# servers are machine-local and intentionally excluded.
+# Authentication, project trust entries, absolute paths, plugins, and MCP
+# servers are machine-local and intentionally excluded. The portable remote
+# approval hook is kept separately in codex-hooks.json.
 
 model_reasoning_effort = "high"
 personality = "pragmatic"
@@ -8,4 +9,3 @@ personality = "pragmatic"
 [features]
 hooks = true
 plugin_hooks = true
-

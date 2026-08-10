@@ -1,0 +1,225 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+config="${WORKBENCH_CONFIG:-$HOME/.config/agent-first-workbench/workspaces.conf}"
+state_root="$HOME/.local/state/agent-first-workbench"
+cache_root="$HOME/.cache/agent-first-workbench/remote-markdown"
+
+usage() {
+  cat <<'EOF'
+usage: workbench-open-bridge start|watch|once ACCOUNT
+
+Poll queued Markdown-open requests from a remote workload account, copy only
+the requested file into a private local cache, and open it in the matching cmux
+workspace.
+EOF
+}
+
+load_config() {
+  [[ -r "$config" ]] || { echo "missing private workspace map: $config" >&2; return 1; }
+  # shellcheck disable=SC1090
+  source "$config"
+  : "${WORKBENCH_HOST:?WORKBENCH_HOST is required in $config}"
+  : "${WORKBENCH_IDENTITY:?WORKBENCH_IDENTITY is required in $config}"
+}
+
+ssh_options() {
+  printf '%s\n' \
+    -i "$WORKBENCH_IDENTITY" \
+    -o IdentitiesOnly=yes \
+    -o StrictHostKeyChecking="${WORKBENCH_STRICT_HOST_KEY_CHECKING:-accept-new}" \
+    -o ConnectTimeout=5 \
+    -o ControlMaster=auto \
+    -o ControlPersist=60 \
+    -o ControlPath=/tmp/agent-workbench-bridge-%C
+}
+
+run_once() (
+  account="$1"
+  load_config
+  command -v cmux >/dev/null || return 1
+  command -v jq >/dev/null || return 1
+  command -v scp >/dev/null || return 1
+  cmux ping >/dev/null 2>&1 || return 1
+
+  destination="$account@$WORKBENCH_HOST"
+  options_file="$(mktemp)"
+  requests_file="$(mktemp)"
+  workspaces_file="$(mktemp)"
+  attention_file="$(mktemp)"
+  trap 'rm -f -- "$options_file" "$requests_file" "$workspaces_file" "$attention_file"' EXIT
+  ssh_options > "$options_file"
+
+  ssh_arguments=()
+  while IFS= read -r option; do
+    ssh_arguments+=("$option")
+  done < "$options_file"
+
+  ssh -n "${ssh_arguments[@]}" "$destination" \
+    'find "$HOME/.local/state/workbench-open/requests" -maxdepth 1 -type f -printf "%f\n" 2>/dev/null | sort' \
+    > "$requests_file" || return 1
+  cmux workspace list --json > "$workspaces_file" || return 1
+
+  attention_state_dir="$state_root/attention-$account"
+  install -d -m 700 "$attention_state_dir"
+
+  workspace_for_session() {
+    jq -r --arg title "$1" \
+      '.workspaces[] | select((.title // .name) == $title) | (.ref // .id)' \
+      "$workspaces_file" | head -1
+  }
+
+  review_workspace_for_session() {
+    review_title="REVIEW | $1"
+    review_ref="$(jq -r --arg title "$review_title" \
+      '.workspaces[] | select((.title // .name) == $title) | (.ref // .id)' \
+      "$workspaces_file" | head -1)"
+    if [[ -n "$review_ref" && "$review_ref" != "null" ]]; then
+      printf '%s\n' "$review_ref"
+      return 0
+    fi
+
+    review_result="$(cmux new-workspace \
+      --name "$review_title" \
+      --description "Review handoffs from remote tmux session $1" \
+      --cwd "$cache_root" \
+      --focus false)" || return 1
+    review_ref="$(printf '%s\n' "$review_result" \
+      | sed -n 's/.*workspace=\(workspace:[0-9][0-9]*\).*/\1/p' \
+      | head -1)"
+    [[ -n "$review_ref" ]] || return 1
+    printf '%s\n' "$review_ref"
+  }
+
+  notify_attention() {
+    attention_session="$1"
+    attention_source="$2"
+    attention_marker="$attention_state_dir/$attention_session"
+    [[ -e "$attention_marker" ]] && return 0
+    attention_workspace_ref="$(workspace_for_session "$attention_session")"
+    [[ -n "$attention_workspace_ref" && "$attention_workspace_ref" != "null" ]] || return 1
+    cmux notify \
+      --workspace "$attention_workspace_ref" \
+      --title "Remote approval needed" \
+      --subtitle "$attention_session" \
+      --body "$attention_source on the server is waiting for your confirmation." >/dev/null || return 1
+    cmux workspace-action \
+      --workspace "$attention_workspace_ref" \
+      --action mark-unread >/dev/null || true
+    : > "$attention_marker"
+  }
+
+  while IFS= read -r request; do
+    [[ -n "$request" && "$request" =~ ^[A-Za-z0-9_.-]+$ ]] || continue
+    metadata="$(ssh -n "${ssh_arguments[@]}" "$destination" "cat -- .local/state/workbench-open/requests/$request")" || continue
+    mode="$(printf '%s\n' "$metadata" | sed -n '1p')"
+    session="$(printf '%s\n' "$metadata" | sed -n '2p')"
+    remote_path="$(printf '%s\n' "$metadata" | sed -n '3p')"
+
+    [[ "$session" =~ ^[A-Za-z0-9_.\ -]+$ ]] || continue
+    workspace_ref="$(workspace_for_session "$session")"
+    [[ -n "$workspace_ref" && "$workspace_ref" != "null" ]] || continue
+
+    handled=false
+    case "$mode" in
+      markdown)
+        [[ "$remote_path" =~ ^/home/$account/workspace/[A-Za-z0-9_./-]+$ ]] || continue
+        basename="${remote_path##*/}"
+        local_dir="$cache_root/$account/$request"
+        local_path="$local_dir/$basename"
+        temporary_path="$local_path.part"
+        install -d -m 700 "$local_dir"
+        scp "${ssh_arguments[@]}" "$destination:$remote_path" "$temporary_path" >/dev/null || continue
+        chmod 600 "$temporary_path"
+        mv "$temporary_path" "$local_path"
+        if cmux open "$local_path" --workspace "$workspace_ref" --focus false >/dev/null 2>&1; then
+          handled=true
+        else
+          review_workspace_ref="$(review_workspace_for_session "$session")" || continue
+          cmux open "$local_path" --workspace "$review_workspace_ref" --focus false >/dev/null && handled=true
+        fi
+        ;;
+      browser)
+        [[ "$remote_path" =~ ^https://github\.com/[A-Za-z0-9_.~/?#=\&%:+,@!-]+$ ]] || continue
+        if cmux new-surface --type browser --workspace "$workspace_ref" \
+          --url "$remote_path" --focus false >/dev/null 2>&1; then
+          handled=true
+        else
+          review_workspace_ref="$(review_workspace_for_session "$session")" || continue
+          cmux new-surface --type browser --workspace "$review_workspace_ref" \
+            --url "$remote_path" --focus false >/dev/null && handled=true
+        fi
+        ;;
+      attention)
+        [[ "$remote_path" =~ ^(codex|claude|kimi)$ ]] || continue
+        notify_attention "$session" "$remote_path" && handled=true
+        ;;
+      *) continue ;;
+    esac
+
+    if [[ "$handled" == true ]]; then
+      ssh -n "${ssh_arguments[@]}" "$destination" \
+        "unlink -- .local/state/workbench-open/requests/$request" >/dev/null
+    fi
+  done < "$requests_file"
+
+  # Codex sessions that predate hook installation still get an exact, content-
+  # free fallback. Only session names leave the server; pane text is matched
+  # remotely against Codex's stable approval-modal labels.
+  ssh -n "${ssh_arguments[@]}" "$destination" '
+    tmux list-panes -a -F "#{session_name}|#{pane_id}" 2>/dev/null |
+      while IFS="|" read -r session pane; do
+        if tmux capture-pane -p -t "$pane" 2>/dev/null |
+          grep -Eq "Would you like to (run the following command|make the following edits)\?|Press enter to confirm or esc to cancel"; then
+          printf "%s\n" "$session"
+        fi
+      done | sort -u
+  ' > "$attention_file" || true
+
+  while IFS= read -r attention_session; do
+    [[ "$attention_session" =~ ^[A-Za-z0-9_.\ -]+$ ]] || continue
+    notify_attention "$attention_session" "Codex" || true
+  done < "$attention_file"
+
+  for attention_marker in "$attention_state_dir"/*; do
+    [[ -e "$attention_marker" ]] || continue
+    marker_session="${attention_marker##*/}"
+    grep -Fxq -- "$marker_session" "$attention_file" || rm -f -- "$attention_marker"
+  done
+)
+
+command_name="${1:-}"
+account="${2:-}"
+[[ "$account" =~ ^[A-Za-z0-9_.-]+$ ]] || { usage >&2; exit 2; }
+install -d -m 700 "$state_root" "$cache_root"
+pid_file="$state_root/open-bridge-$account.pid"
+log_file="$state_root/open-bridge-$account.log"
+
+case "$command_name" in
+  once)
+    run_once "$account"
+    ;;
+  watch)
+    unset CMUX_WORKSPACE_ID CMUX_SURFACE_ID CMUX_SOCKET_PATH
+    printf '%s\n' "$$" > "$pid_file"
+    trap 'rm -f -- "$pid_file"' EXIT INT TERM
+    while true; do
+      run_once "$account" || true
+      sleep "${WORKBENCH_BRIDGE_INTERVAL_SECONDS:-3}"
+    done
+    ;;
+  start)
+    if [[ -r "$pid_file" ]]; then
+      existing_pid="$(sed -n '1p' "$pid_file")"
+      if [[ "$existing_pid" =~ ^[0-9]+$ ]] && kill -0 "$existing_pid" 2>/dev/null; then
+        exit 0
+      fi
+    fi
+    nohup "$0" watch "$account" >> "$log_file" 2>&1 < /dev/null &
+    printf '%s\n' "$!" > "$pid_file"
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac

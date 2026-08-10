@@ -47,3 +47,35 @@ Aliases resolve through a private `workspaces.conf`. A remote alias creates a
 tmux session in its mapped directory and mirrors it into the cmux sidebar.
 After opening the workspace, `claude`, `codex`, `kimi`, and their resume
 commands work exactly as they do in a local shell.
+
+## Hand remote review artifacts to cmux
+
+Linux cannot run the native macOS cmux CLI or access its local socket. The
+workbench therefore installs a narrow queued bridge for review handoffs:
+
+```bash
+# Run inside a mirrored remote tmux session:
+cmux open .claude/specs/feature.md
+# Equivalent:
+cmux markdown open .claude/specs/feature.md
+
+# Hand a GitHub page to the local cmux browser for human review:
+cmux browser open https://github.com/owner/repository/compare/main...branch
+```
+
+The remote shim accepts only Markdown files inside that workload account's
+`~/workspace` and `https://github.com/` browser URLs. It queues the handoff; the
+Mac bridge started by `work` copies only the requested Markdown into a private
+local cache or opens the URL in the browser. Markdown can open alongside the
+matching tmux workspace; browser handoffs use a non-focusing sibling workspace
+named `REVIEW | <session>` because remote-tmux workspaces cannot host a local
+browser surface. A browser handoff is for human review; the remote agent cannot
+click or submit forms in the local browser. Requests remain queued while the
+Mac is asleep and are handled after reconnecting. Markdown is snapshot review,
+not bidirectional file synchronization.
+
+Codex `PermissionRequest`, Claude `permission_prompt`, and Kimi `Notification`
+hooks use the same queue for exact approval alerts. The bridge also detects the
+standard Codex approval modal for sessions that were already running when hooks
+were installed. Notifications contain only the workload/session label; prompt
+text stays on the server.
