@@ -1,0 +1,21 @@
+# Private machine and workspace mappings belong in:
+#   ~/.config/agent-first-workbench/workspaces.conf
+
+WORKBENCH_HOST="example-host"
+WORKBENCH_IDENTITY="$HOME/.ssh/id_ed25519"
+WORKBENCH_STRICT_HOST_KEY_CHECKING="accept-new"
+
+workbench_resolve() {
+  case "$1" in
+    project)
+      WORKBENCH_ACCOUNT="developer"
+      WORKBENCH_LOCAL_CWD="$HOME/projects/project"
+      WORKBENCH_REMOTE_CWD="$HOME/workspace/repos/project"
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+workbench_list() {
+  echo "project"
+}

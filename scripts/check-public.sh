@@ -9,7 +9,7 @@ fail() {
   exit 1
 }
 
-bash -n install.sh install-linux.sh install-runtimes-linux.sh scripts/check-public.sh config/bash/terminal-env.sh
+bash -n install.sh install-linux.sh install-runtimes-linux.sh scripts/check-public.sh config/bash/terminal-env.sh bin/workbench-session
 zsh -n config/zsh/terminal-env.zsh config/zsh/terminal-productivity.zsh
 jq empty config/cmux/cmux.json
 jq empty config/agents/claude-settings.json.example
@@ -19,6 +19,7 @@ python3 -c 'import pathlib, tomllib; tomllib.loads(pathlib.Path("config/agents/c
 python3 -c 'import pathlib, tomllib; tomllib.loads(pathlib.Path("config/agents/kimi-config.toml.example").read_text())'
 
 [[ -f skills/agent-first-audit/SKILL.md ]] || fail "canonical audit skill is missing"
+[[ -x bin/workbench-session ]] || fail "workbench launcher is not executable"
 [[ -f .agents/skills/agent-first-audit/SKILL.md ]] || fail "Codex skill link is broken"
 [[ -f .claude/skills/agent-first-audit/SKILL.md ]] || fail "Claude skill link is broken"
 

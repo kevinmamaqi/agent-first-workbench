@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+config="${WORKBENCH_CONFIG:-$HOME/.config/agent-first-workbench/workspaces.conf}"
+location="remote"
+workspace=""
+session_suffix=""
+agent="shell"
+
+case "$(basename "$0")" in
+  workl|work-local) location="local" ;;
+esac
+
+usage() {
+  cat <<'EOF'
+usage: work [--remote|--local] [--session NAME] [--agent AGENT] WORKSPACE
+
+Open a visibly labeled cmux workspace. Remote is the default.
+
+examples:
+  work each-cl
+  work each-cl --agent claude
+  work each-cl --session ENG-1234
+  work --local each-cl
+
+AGENT may be shell, claude, codex, or kimi. Re-running a remote workspace
+reconnects its existing tmux session; it does not start a second agent.
+EOF
+}
+
+while (($#)); do
+  case "$1" in
+    --remote) location="remote"; shift ;;
+    --local) location="local"; shift ;;
+    --session)
+      (($# >= 2)) || { usage >&2; exit 2; }
+      session_suffix="$2"
+      shift 2
+      ;;
+    --agent)
+      (($# >= 2)) || { usage >&2; exit 2; }
+      agent="$2"
+      shift 2
+      ;;
+    -h|--help) usage; exit 0 ;;
+    -*) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
+    *)
+      [[ -z "$workspace" ]] || { echo "only one workspace alias is accepted" >&2; exit 2; }
+      workspace="$1"
+      shift
+      ;;
+  esac
+done
+
+[[ -n "$workspace" ]] || { usage >&2; exit 2; }
+[[ "$workspace" =~ ^[A-Za-z0-9_.-]+$ ]] || {
+  echo "workspace aliases may contain only letters, numbers, dots, underscores, and dashes" >&2
+  exit 2
+}
+[[ -z "$session_suffix" || "$session_suffix" =~ ^[A-Za-z0-9_.-]+$ ]] || {
+  echo "session names may contain only letters, numbers, dots, underscores, and dashes" >&2
+  exit 2
+}
+case "$agent" in
+  shell|claude|codex|kimi) ;;
+  *) echo "agent must be shell, claude, codex, or kimi" >&2; exit 2 ;;
+esac
+
+[[ -r "$config" ]] || {
+  echo "missing private workspace map: $config" >&2
+  echo "install or create it from config/workspaces.conf.example" >&2
+  exit 1
+}
+
+# shellcheck disable=SC1090
+source "$config"
+declare -F workbench_resolve >/dev/null || {
+  echo "$config must define workbench_resolve" >&2
+  exit 1
+}
+
+WORKBENCH_ACCOUNT=""
+WORKBENCH_LOCAL_CWD=""
+WORKBENCH_REMOTE_CWD=""
+workbench_resolve "$workspace" || {
+  echo "unknown workspace alias: $workspace" >&2
+  if declare -F workbench_list >/dev/null; then
+    printf 'available: '
+    workbench_list
+  fi
+  exit 1
+}
+
+banner_scope="$(printf '%s' "$location" | tr '[:lower:]' '[:upper:]')"
+session_name="$banner_scope-$workspace"
+[[ -z "$session_suffix" ]] || session_name="$session_name-$session_suffix"
+description="$banner_scope | $WORKBENCH_ACCOUNT | $workspace"
+
+if [[ "$location" == "local" ]]; then
+  command -v cmux >/dev/null || { echo "cmux is required for local workspaces" >&2; exit 1; }
+  [[ -d "$WORKBENCH_LOCAL_CWD" ]] || {
+    echo "local workspace does not exist: $WORKBENCH_LOCAL_CWD" >&2
+    exit 1
+  }
+
+  start_command="export WORKBENCH_LOCATION=LOCAL WORKBENCH_WORKSPACE=$workspace; printf '\\033]0;LOCAL | $workspace\\007\\n\\033[1;34m[LOCAL] $workspace\\033[0m\\n'"
+  if [[ "$agent" != "shell" ]]; then
+    start_command="$start_command; exec $agent"
+  fi
+
+  result="$(cmux new-workspace \
+    --name "$session_name" \
+    --description "$description" \
+    --cwd "$WORKBENCH_LOCAL_CWD" \
+    --env WORKBENCH_LOCATION=LOCAL \
+    --env "WORKBENCH_WORKSPACE=$workspace" \
+    --command "$start_command" \
+    --focus true)"
+  printf '%s\n' "$result"
+  workspace_ref="$(printf '%s\n' "$result" | sed -n 's/.*workspace=\(workspace:[0-9][0-9]*\).*/\1/p' | head -1)"
+  if [[ -n "$workspace_ref" ]]; then
+    cmux workspace-action --workspace "$workspace_ref" --action set-color --color Blue >/dev/null
+  fi
+  exit 0
+fi
+
+command -v ssh >/dev/null || { echo "ssh is required for remote workspaces" >&2; exit 1; }
+command -v cmux >/dev/null || { echo "cmux is required for remote workspaces" >&2; exit 1; }
+: "${WORKBENCH_HOST:?WORKBENCH_HOST is required in $config}"
+: "${WORKBENCH_IDENTITY:?WORKBENCH_IDENTITY is required in $config}"
+[[ -r "$WORKBENCH_IDENTITY" ]] || { echo "missing SSH identity: $WORKBENCH_IDENTITY" >&2; exit 1; }
+
+destination="$WORKBENCH_ACCOUNT@$WORKBENCH_HOST"
+ssh_arguments=(
+  -i "$WORKBENCH_IDENTITY"
+  -o IdentitiesOnly=yes
+  -o StrictHostKeyChecking="${WORKBENCH_STRICT_HOST_KEY_CHECKING:-accept-new}"
+  -o ServerAliveInterval=30
+  -o ServerAliveCountMax=3
+)
+
+printf -v quoted_session '%q' "$session_name"
+printf -v quoted_directory '%q' "$WORKBENCH_REMOTE_CWD"
+printf -v quoted_workspace '%q' "$workspace"
+printf -v quoted_account '%q' "$WORKBENCH_ACCOUNT"
+remote_start="cd $quoted_directory; export WORKBENCH_LOCATION=REMOTE WORKBENCH_WORKSPACE=$quoted_workspace; printf '\\033]0;REMOTE | $workspace\\007\\n\\033[1;31m[REMOTE] $WORKBENCH_ACCOUNT / $workspace\\033[0m\\n'"
+if [[ "$agent" != "shell" ]]; then
+  remote_start="$remote_start; $agent; exec /bin/bash -i"
+else
+  remote_start="$remote_start; exec /bin/bash -i"
+fi
+printf -v quoted_start '%q' "$remote_start"
+runner_command="/bin/bash -lc $quoted_start"
+printf -v quoted_runner '%q' "$runner_command"
+
+remote_command="
+  set -eu
+  test -d $quoted_directory || { echo 'remote workspace does not exist: $WORKBENCH_REMOTE_CWD' >&2; exit 1; }
+  if tmux has-session -t $quoted_session 2>/dev/null; then
+    echo 'reconnecting: $session_name'
+    exit 0
+  fi
+  tmux new-session -d -s $quoted_session -c $quoted_directory $quoted_runner
+  tmux set-environment -t $quoted_session WORKBENCH_LOCATION REMOTE
+  tmux set-environment -t $quoted_session WORKBENCH_WORKSPACE $quoted_workspace
+  tmux set-environment -t $quoted_session WORKBENCH_ACCOUNT $quoted_account
+  tmux rename-window -t $quoted_session:0 shell
+  echo 'created: $session_name'
+"
+
+ssh "${ssh_arguments[@]}" "$destination" "$remote_command"
+cmux_arguments=(ssh-tmux "$destination" --identity "$WORKBENCH_IDENTITY")
+[[ "${WORKBENCH_CMUX_NEW_WINDOW:-0}" == "1" ]] && cmux_arguments+=(--new-window)
+exec cmux "${cmux_arguments[@]}"
