@@ -5,6 +5,7 @@ database_id="${1:-}"
 config_file="${WORKBENCH_DATABASE_CONFIG:-$HOME/.config/agent-first-workbench/databases.conf}"
 secret_file="${WORKBENCH_DATABASE_SECRETS:-$HOME/.config/agent-first-workbench/db.env}"
 dbhub_package="${WORKBENCH_DBHUB_PACKAGE:-@bytebase/dbhub@1.0.0}"
+npx_command="${WORKBENCH_NPX:-}"
 
 fail() {
   echo "workbench-db-mcp: $1" >&2
@@ -42,6 +43,14 @@ read_env_value() {
 
 [[ -n "$database_id" && "$database_id" =~ ^[a-z0-9][a-z0-9-]*$ ]] || \
   fail "usage: workbench-db-mcp DATABASE_ID"
+if [[ -z "$npx_command" ]]; then
+  if [[ -x "$HOME/.local/bin/npx" ]]; then
+    npx_command="$HOME/.local/bin/npx"
+  else
+    npx_command="$(command -v npx || true)"
+  fi
+fi
+[[ -n "$npx_command" && -x "$npx_command" ]] || fail "npx is not installed"
 [[ -r "$config_file" ]] || fail "database map is not readable: $config_file"
 [[ -f "$secret_file" && ! -L "$secret_file" && -r "$secret_file" ]] || \
   fail "credential store must be a readable regular file: $secret_file"
@@ -94,7 +103,7 @@ unset dsn normalized_dsn
 printf '[[sources]]\nid = "default"\ndsn = "${DBHUB_DSN}"\nlazy = true\nquery_timeout = 30\n\n[[tools]]\nname = "execute_sql"\nsource = "default"\nreadonly = true\nmax_rows = 100\n\n[[tools]]\nname = "search_objects"\nsource = "default"\n' > "$dbhub_config"
 chmod 600 "$dbhub_config"
 
-npx -y "$dbhub_package" --config="$dbhub_config" <&0 &
+"$npx_command" -y "$dbhub_package" --config="$dbhub_config" <&0 &
 child_pid=$!
 set +e
 wait "$child_pid"
