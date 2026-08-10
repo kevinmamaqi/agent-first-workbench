@@ -40,6 +40,10 @@ run_once() (
   command -v cmux >/dev/null || return 1
   command -v jq >/dev/null || return 1
   command -v scp >/dev/null || return 1
+  if [[ -z "${CMUX_SOCKET_PATH:-}" ]]; then
+    native_socket="$HOME/.local/state/cmux/cmux-$(id -u).sock"
+    [[ -S "$native_socket" ]] && export CMUX_SOCKET_PATH="$native_socket"
+  fi
   cmux ping >/dev/null 2>&1 || return 1
 
   destination="$account@$WORKBENCH_HOST"
