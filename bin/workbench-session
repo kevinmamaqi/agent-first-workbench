@@ -13,13 +13,14 @@ esac
 
 usage() {
   cat <<'EOF'
-usage: work [--remote|--local] [--session NAME] [--agent AGENT] WORKSPACE
+usage: work [--remote|--local] [--session NAME] [--agent AGENT] WORKSPACE [TASK]
 
 Open a visibly labeled cmux workspace. Remote is the default.
 
 examples:
   work each-cl
   work each-cl --agent claude
+  work each-cl ENG-1234
   work each-cl --session ENG-1234
   work --local each-cl
 
@@ -45,8 +46,14 @@ while (($#)); do
     -h|--help) usage; exit 0 ;;
     -*) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
     *)
-      [[ -z "$workspace" ]] || { echo "only one workspace alias is accepted" >&2; exit 2; }
-      workspace="$1"
+      if [[ -z "$workspace" ]]; then
+        workspace="$1"
+      elif [[ -z "$session_suffix" ]]; then
+        session_suffix="$1"
+      else
+        echo "only a workspace alias and optional task name are accepted" >&2
+        exit 2
+      fi
       shift
       ;;
   esac

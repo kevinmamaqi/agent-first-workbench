@@ -105,6 +105,7 @@ The `work` launcher keeps that remote flow as short as a local one:
 
 ```bash
 work project                 # REMOTE-project; reconnects if it exists
+work project task-name       # separate durable workspace for a task
 work project --agent claude  # optionally start an agent immediately
 work --local project         # LOCAL-project
 ```

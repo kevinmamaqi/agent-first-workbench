@@ -1,0 +1,13 @@
+[Unit]
+Description=Incremental code-review-graph watcher
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/crg-daemon start --foreground
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

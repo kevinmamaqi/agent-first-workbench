@@ -38,6 +38,7 @@ making location unmistakable. Remote is the default:
 
 ```bash
 work project                 # REMOTE-project; reconnects if it exists
+work project task-name       # separate durable workspace for a task
 work project --agent codex   # create it and start Codex
 work --local project         # LOCAL-project
 ```
