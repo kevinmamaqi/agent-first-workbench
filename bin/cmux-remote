@@ -9,6 +9,7 @@ usage:
   cmux [--json] open FILE.md
   cmux [--json] markdown open FILE.md
   cmux [--json] browser open https://github.com/...
+  cmux hooks AGENT notification approval|complete
 
 Markdown files and GitHub URLs are queued for the connected Mac workbench
 bridge. Browser requests are human handoffs, not remote browser automation.
@@ -44,7 +45,12 @@ case "${1:-}" in
     case "${2:-}:${3:-}" in
       codex:notification|codex:notify|claude:notification|claude:notify|kimi:notification|kimi:notify)
         mode="attention"
-        payload="${2:-}"
+        hook_kind="${4:-approval}"
+        [[ "$hook_kind" == "approval" || "$hook_kind" == "complete" ]] || {
+          echo "unsupported remote cmux notification kind" >&2
+          exit 2
+        }
+        payload="${2:-}:$hook_kind"
         hook_request=true
         cat >/dev/null 2>&1 || true
         ;;
