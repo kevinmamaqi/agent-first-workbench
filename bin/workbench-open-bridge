@@ -37,14 +37,14 @@ ssh_options() {
 run_once() (
   account="$1"
   load_config
-  command -v cmux >/dev/null || return 1
-  command -v jq >/dev/null || return 1
-  command -v scp >/dev/null || return 1
+  command -v cmux >/dev/null || { echo "bridge: cmux is unavailable" >&2; return 1; }
+  command -v jq >/dev/null || { echo "bridge: jq is unavailable" >&2; return 1; }
+  command -v scp >/dev/null || { echo "bridge: scp is unavailable" >&2; return 1; }
   if [[ -z "${CMUX_SOCKET_PATH:-}" ]]; then
     native_socket="$HOME/.local/state/cmux/cmux-$(id -u).sock"
     [[ -S "$native_socket" ]] && export CMUX_SOCKET_PATH="$native_socket"
   fi
-  cmux ping >/dev/null 2>&1 || return 1
+  cmux ping >/dev/null 2>&1 || { echo "bridge: cmux socket is unavailable" >&2; return 1; }
 
   destination="$account@$WORKBENCH_HOST"
   options_file="$(mktemp)"
@@ -63,7 +63,10 @@ run_once() (
   ssh -n "${ssh_arguments[@]}" "$destination" \
     'find "$HOME/.local/state/workbench-open/requests" -maxdepth 1 -type f -printf "%f\n" 2>/dev/null | sort' \
     > "$requests_file" || return 1
-  cmux workspace list --json > "$workspaces_file" || return 1
+  cmux workspace list --json > "$workspaces_file" || {
+    echo "bridge: cmux workspace list failed" >&2
+    return 1
+  }
   ssh -n "${ssh_arguments[@]}" "$destination" '
     tmux list-sessions -F "#{session_name}" 2>/dev/null |
       while IFS= read -r session; do
@@ -262,7 +265,7 @@ case "$command_name" in
     printf '%s\n' "$$" > "$pid_file"
     trap 'rm -f -- "$pid_file"' EXIT INT TERM
     while true; do
-      run_once "$account" || true
+      run_once "$account" >> "$log_file" 2>&1 || true
       sleep "${WORKBENCH_BRIDGE_INTERVAL_SECONDS:-3}"
     done
     ;;
