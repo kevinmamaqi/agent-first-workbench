@@ -1,0 +1,17 @@
+{
+  "description": "Queue remote Codex approval prompts for the local cmux workbench.",
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cmux hooks codex notification",
+            "timeout": 3,
+            "statusMessage": "Notifying the local cmux workbench"
+          }
+        ]
+      }
+    ]
+  }
+}

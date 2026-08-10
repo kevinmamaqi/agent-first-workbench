@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Remote cmux handoff shim
+
+usage:
+  cmux [--json] open FILE.md
+  cmux [--json] markdown open FILE.md
+  cmux [--json] browser open https://github.com/...
+
+Markdown files and GitHub URLs are queued for the connected Mac workbench
+bridge. Browser requests are human handoffs, not remote browser automation.
+Other cmux commands require the native macOS application.
+EOF
+}
+
+json_output=false
+if [[ "${1:-}" == "--json" ]]; then
+  json_output=true
+  shift
+fi
+
+mode=""
+payload=""
+hook_request=false
+case "${1:-}" in
+  open)
+    mode="markdown"
+    payload="${2:-}"
+    ;;
+  markdown)
+    [[ "${2:-}" == "open" ]] || { usage >&2; exit 2; }
+    mode="markdown"
+    payload="${3:-}"
+    ;;
+  browser)
+    [[ "${2:-}" == "open" ]] || { usage >&2; exit 2; }
+    mode="browser"
+    payload="${3:-}"
+    ;;
+  hooks)
+    case "${2:-}:${3:-}" in
+      codex:notification|codex:notify|claude:notification|claude:notify|kimi:notification|kimi:notify)
+        mode="attention"
+        payload="${2:-}"
+        hook_request=true
+        cat >/dev/null 2>&1 || true
+        ;;
+      *) echo "unsupported remote cmux hook" >&2; exit 2 ;;
+    esac
+    ;;
+  -h|--help|help)
+    usage
+    exit 0
+    ;;
+  *)
+    echo "remote cmux supports only Markdown open requests" >&2
+    usage >&2
+    exit 2
+    ;;
+esac
+
+[[ -n "${TMUX:-}" ]] || { echo "remote cmux must run inside tmux" >&2; exit 1; }
+
+case "$mode" in
+  markdown)
+    [[ -n "$payload" ]] || { usage >&2; exit 2; }
+    case "$payload" in
+      *.md|*.markdown|*.mdx) ;;
+      *) echo "remote cmux currently opens only Markdown files" >&2; exit 2 ;;
+    esac
+    command -v realpath >/dev/null || { echo "realpath is required" >&2; exit 1; }
+    resolved="$(realpath -e -- "$payload")"
+    workspace_root="$(realpath -e -- "$HOME/workspace")"
+    case "$resolved" in
+      "$workspace_root"/*) ;;
+      *) echo "refusing to queue a file outside $workspace_root" >&2; exit 1 ;;
+    esac
+    payload="$resolved"
+    ;;
+  browser)
+    [[ "$payload" =~ ^https://github\.com/[A-Za-z0-9_.~/?#=\&%:+,@!-]+$ ]] || {
+      echo "remote browser handoff currently accepts only https://github.com URLs" >&2
+      exit 2
+    }
+    ;;
+  attention) ;;
+  *) usage >&2; exit 2 ;;
+esac
+
+if [[ -n "${TMUX_PANE:-}" ]]; then
+  session="$(tmux display-message -p -t "$TMUX_PANE" '#S')"
+else
+  session="$(tmux display-message -p '#S')"
+fi
+[[ "$session" =~ ^[A-Za-z0-9_.\ -]+$ ]] || { echo "unsafe tmux session name" >&2; exit 1; }
+request_dir="$HOME/.local/state/workbench-open/requests"
+install -d -m 700 "$request_dir"
+request_id="$(date +%s%N)-$$"
+temporary="$(mktemp "$request_dir/.request.XXXXXX")"
+chmod 600 "$temporary"
+printf '%s\n%s\n%s\n' "$mode" "$session" "$payload" > "$temporary"
+mv "$temporary" "$request_dir/$request_id"
+
+if [[ "$hook_request" == true ]]; then
+  printf '{}\n'
+elif [[ "$json_output" == true ]]; then
+  printf '{"queued":true,"mode":"%s","workspace":"%s"}\n' "$mode" "$session"
+else
+  case "$mode" in
+    markdown) printf 'Queued Markdown for cmux on the Mac: %s\n' "${payload##*/}" ;;
+    browser) printf 'Queued GitHub page for cmux on the Mac.\n' ;;
+  esac
+  printf 'Target workspace: %s\n' "$session"
+fi

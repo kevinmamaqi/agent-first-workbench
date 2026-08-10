@@ -137,6 +137,8 @@ fi
 if [[ "$scope" != "system" ]]; then
   install_link "$root/config/bash/terminal-env.sh" "$HOME/.config/agent-first-workbench/terminal-env.sh"
   install_link "$root/config/tmux/tmux.conf" "$HOME/.tmux.conf"
+  install_link "$root/bin/cmux-remote" "$HOME/.local/bin/cmux"
+  install_link "$root/config/agents/codex-hooks.json" "$HOME/.codex/hooks.json"
 
   install_agent "RTK" \
     'curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh'

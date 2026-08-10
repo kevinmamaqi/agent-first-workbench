@@ -176,6 +176,10 @@ remote_command="
 "
 
 ssh "${ssh_arguments[@]}" "$destination" "$remote_command"
+if command -v workbench-open-bridge >/dev/null 2>&1; then
+  workbench-open-bridge start "$WORKBENCH_ACCOUNT" || \
+    echo "warning: could not start the remote handoff bridge" >&2
+fi
 cmux_arguments=(ssh-tmux "$destination" --identity "$WORKBENCH_IDENTITY")
 [[ "${WORKBENCH_CMUX_NEW_WINDOW:-0}" == "1" ]] && cmux_arguments+=(--new-window)
 exec cmux "${cmux_arguments[@]}"

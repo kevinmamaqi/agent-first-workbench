@@ -4,9 +4,21 @@
   "env": {
     "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"
   },
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "permission_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cmux hooks claude notification"
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "defaultMode": "default"
   },
   "tui": "fullscreen"
 }
-

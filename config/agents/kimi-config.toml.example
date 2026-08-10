@@ -13,3 +13,7 @@ max_running_tasks = 4
 keep_alive_on_exit = false
 agent_task_timeout_s = 900
 
+[[hooks]]
+event = "Notification"
+command = "cmux hooks kimi notification"
+timeout = 10
