@@ -32,7 +32,8 @@ user:
 ```
 
 Defaults are Go 1.26.5, Node 22 and 24 (24 as default), uv-managed Python 3.11
-and 3.13, stable Bun, and `code-review-graph[communities]`. Override the version
+and 3.13, stable Bun, `code-review-graph[communities]`, and Harlequin with its
+PostgreSQL adapter. Override the version
 lists with `GO_VERSION`, `NODE_VERSIONS`, `NODE_DEFAULT`, and `PYTHON_VERSIONS`.
 
 The system scope installs shared packages, AWS CLI v2, and account-aware command
@@ -43,6 +44,10 @@ that should carry those files with `rtk init --agent kimi`.
 
 The Bash profile applies `umask 077`, so new per-account credentials and agent
 artifacts are private by default.
+
+The system scope also installs WireGuard and the PostgreSQL command-line client.
+Those are human/admin facilities: coding agents use only the constrained MCP
+path described in [database-access.md](database-access.md).
 
 ## Long-running sessions
 

@@ -64,7 +64,7 @@ Both meet at the same boundary: a reviewed specification before implementation a
 - **Navigation:** [ripgrep](https://github.com/BurntSushi/ripgrep), [fd](https://github.com/sharkdp/fd), [fzf](https://github.com/junegunn/fzf), [Zoxide](https://github.com/ajeetdsouza/zoxide), and [Atuin](https://docs.atuin.sh/)
 - **Review:** [Delta](https://github.com/dandavison/delta), [Bat](https://github.com/sharkdp/bat), and [Glow](https://github.com/charmbracelet/glow)
 - **Structured data:** [jq](https://jqlang.org/) + [mikefarah/yq](https://github.com/mikefarah/yq)
-- **Database exploration:** [Harlequin](https://harlequin.sh/) for an interactive SQL workspace in the terminal
+- **Database exploration:** [Harlequin](https://harlequin.sh/) for humans; constrained [DBHub](https://github.com/bytebase/dbhub) MCP servers for agents
 - **Agent context:** `AGENTS.md`, `CLAUDE.md`, skills, and MCP
 - **Concise agent output:** [RTK](https://github.com/rtk-ai/rtk), with `rtk proxy` as the raw-output escape hatch
 
@@ -86,6 +86,11 @@ Those are self-reported estimates, not a benchmark or a correctness claim. The m
 - Run `make check` and inspect the complete Git diff before publishing changes.
 
 See [privacy.md](docs/privacy.md) for the publication boundary and [sources.md](docs/sources.md) for upstream projects and licenses.
+
+The Linux profile includes a reusable human/agent database boundary and
+WireGuard controller. Real peers, interface names, database identities, and
+DSNs remain in a private per-account profile; see
+[database-access.md](docs/database-access.md).
 
 ## One Included Skill
 

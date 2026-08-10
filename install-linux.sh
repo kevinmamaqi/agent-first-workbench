@@ -108,7 +108,8 @@ install_aws_cli() {
 
 packages=(
   build-essential ca-certificates curl fd-find gh git gnupg htop jq
-  pkg-config python3 ripgrep rsync sqlite3 tmux tree unzip zip zsh
+  pkg-config postgresql-client python3 ripgrep rsync sqlite3 tmux tree unzip
+  wireguard zip zsh
 )
 
 if [[ "$scope" != "user" ]]; then
@@ -138,6 +139,10 @@ if [[ "$scope" != "system" ]]; then
   install_link "$root/config/bash/terminal-env.sh" "$HOME/.config/agent-first-workbench/terminal-env.sh"
   install_link "$root/config/tmux/tmux.conf" "$HOME/.tmux.conf"
   install_link "$root/bin/cmux-remote" "$HOME/.local/bin/cmux"
+  install_link "$root/config/harlequin/harlequin.toml" "$HOME/.harlequin.toml"
+  install_link "$root/bin/workbench-db-ui" "$HOME/.local/bin/dbui"
+  install_link "$root/bin/workbench-db-mcp" "$HOME/.local/bin/workbench-db-mcp"
+  install_link "$root/bin/workbench-wg" "$HOME/.local/bin/workbench-wg"
   install_link "$root/config/agents/codex-hooks.json" "$HOME/.codex/hooks.json"
 
   install_agent "RTK" \

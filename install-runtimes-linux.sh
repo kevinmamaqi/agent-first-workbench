@@ -133,14 +133,23 @@ install_code_graph() {
   "$HOME/.local/bin/uv" tool install --force 'code-review-graph[communities]'
 }
 
+install_harlequin() {
+  if [[ "$mode" == "dry-run" ]]; then
+    echo "would install/update Harlequin with the PostgreSQL adapter using uv"
+    return
+  fi
+  "$HOME/.local/bin/uv" tool install --force 'harlequin[postgres]'
+}
+
 install_go
 install_uv_and_python
 install_nvm_and_node
 install_bun
 install_code_graph
+install_harlequin
 
 if [[ "$mode" == "dry-run" ]]; then
   echo "dry run only; rerun with --apply to install runtimes"
 else
-  echo "installed Go, Python/uv, Node/NVM, Bun, and code-review-graph"
+  echo "installed Go, Python/uv, Node/NVM, Bun, code-review-graph, and Harlequin"
 fi
