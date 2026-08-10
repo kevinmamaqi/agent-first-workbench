@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+config_file="${WORKBENCH_DATABASE_CONFIG:-$HOME/.config/agent-first-workbench/databases.conf}"
+
+fail() {
+  echo "workbench-wg: $1" >&2
+  exit 1
+}
+
+[[ -r "$config_file" ]] || fail "database map is not readable: $config_file"
+# shellcheck disable=SC1090
+source "$config_file"
+
+dev_interface="${WORKBENCH_WG_DEV_INTERFACE:-}"
+prod_interface="${WORKBENCH_WG_PROD_INTERFACE:-}"
+for interface_name in "$dev_interface" "$prod_interface"; do
+  [[ "$interface_name" =~ ^[a-zA-Z0-9_=+.-]{1,15}$ ]] || fail "invalid WireGuard interface in database map"
+done
+
+is_active() {
+  systemctl is-active --quiet "wg-quick@$1.service"
+}
+
+status() {
+  local dev_up=0 prod_up=0
+  is_active "$dev_interface" && dev_up=1
+  is_active "$prod_interface" && prod_up=1
+  if (( dev_up && prod_up )); then
+    echo conflict-dev-prod
+  elif (( dev_up )); then
+    echo dev
+  elif (( prod_up )); then
+    echo prod
+  else
+    echo none
+  fi
+}
+
+stop_interface() {
+  local interface_name="$1"
+  if is_active "$interface_name"; then
+    sudo -n systemctl stop "wg-quick@$interface_name.service"
+  fi
+}
+
+up_target() {
+  local target="$1" selected other
+  case "$target" in
+    dev) selected="$dev_interface"; other="$prod_interface" ;;
+    prod) selected="$prod_interface"; other="$dev_interface" ;;
+    *) fail "usage: workbench-wg up <dev|prod>" ;;
+  esac
+
+  if is_active "$selected"; then
+    echo "$target already up"
+    return
+  fi
+  stop_interface "$other"
+  stop_interface "$selected"
+  sudo -n systemctl start "wg-quick@$selected.service"
+  is_active "$selected" || fail "$target tunnel did not become active"
+  echo "$target up"
+}
+
+down_target() {
+  case "$1" in
+    dev) stop_interface "$dev_interface"; echo "dev down" ;;
+    prod) stop_interface "$prod_interface"; echo "prod down" ;;
+    all)
+      stop_interface "$dev_interface"
+      stop_interface "$prod_interface"
+      echo "all down"
+      ;;
+    *) fail "usage: workbench-wg down [dev|prod|all]" ;;
+  esac
+}
+
+case "${1:-status}" in
+  status) status ;;
+  up) up_target "${2:-}" ;;
+  down) down_target "${2:-all}" ;;
+  *) fail "usage: workbench-wg [status | up <dev|prod> | down [dev|prod|all]]" ;;
+esac

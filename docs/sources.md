@@ -18,6 +18,8 @@ Tool descriptions and examples are short paraphrases of canonical documentation.
 | mikefarah/yq | https://github.com/mikefarah/yq | MIT |
 | Helix | https://github.com/helix-editor/helix | MPL-2.0 |
 | Harlequin | https://github.com/tconbeer/harlequin | MIT |
+| DBHub | https://github.com/bytebase/dbhub | MIT |
+| WireGuard | https://www.wireguard.com/ | GPL-2.0 (Linux kernel); userspace components vary |
 | RTK | https://github.com/rtk-ai/rtk | Apache-2.0 |
 | Kimi Code | https://github.com/MoonshotAI/kimi-code | MIT |
 
@@ -42,5 +44,9 @@ Agent configuration references:
 - code-review-graph: https://github.com/tirth8205/code-review-graph
 - Ghostty configuration: https://ghostty.org/docs/config
 - Harlequin installation and usage: https://harlequin.sh/docs/getting-started/index
+- DBHub configuration: https://github.com/bytebase/dbhub/blob/main/dbhub.toml.example
+- WireGuard installation: https://www.wireguard.com/install/
+- Codex MCP configuration: https://developers.openai.com/codex/mcp
+- Kimi MCP configuration: https://moonshotai.github.io/kimi-cli/en/customization/mcp.html
 
-Last reviewed: 2026-08-09.
+Last reviewed: 2026-08-10.

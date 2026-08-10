@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+database_id="${1:-}"
+config_file="${WORKBENCH_DATABASE_CONFIG:-$HOME/.config/agent-first-workbench/databases.conf}"
+secret_file="${WORKBENCH_DATABASE_SECRETS:-$HOME/.config/agent-first-workbench/db.env}"
+
+fail() {
+  echo "dbui: $1" >&2
+  exit 1
+}
+
+file_mode() {
+  stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1" 2>/dev/null
+}
+
+read_env_value() {
+  local wanted="$1" line key value
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line#export }"
+    [[ "$line" == *=* ]] || continue
+    key="${line%%=*}"
+    [[ "$key" == "$wanted" ]] || continue
+    value="${line#*=}"
+    if [[ ${#value} -ge 2 ]]; then
+      if [[ "${value:0:1}" == '"' && "${value: -1}" == '"' ]]; then
+        value="${value:1:${#value}-2}"
+      elif [[ "${value:0:1}" == "'" && "${value: -1}" == "'" ]]; then
+        value="${value:1:${#value}-2}"
+      fi
+    fi
+    printf '%s' "$value"
+    return 0
+  done < "$secret_file"
+  return 1
+}
+
+if [[ -z "$database_id" ]]; then
+  exec harlequin
+fi
+shift
+
+[[ -r "$config_file" ]] || fail "database map is not readable: $config_file"
+[[ -f "$secret_file" && ! -L "$secret_file" && -r "$secret_file" ]] || \
+  fail "credential store must be a readable regular file: $secret_file"
+[[ "$(file_mode "$secret_file")" == "600" ]] || fail "credential store must have mode 0600"
+
+# shellcheck disable=SC1090
+source "$config_file"
+declare -F workbench_database >/dev/null || fail "database map does not define workbench_database"
+WORKBENCH_DATABASE_DSN_VAR=""
+WORKBENCH_DATABASE_TUNNEL=""
+workbench_database "$database_id" || fail "unknown database id: $database_id"
+
+dsn="$(read_env_value "$WORKBENCH_DATABASE_DSN_VAR" || true)"
+[[ -n "$dsn" ]] || fail "$WORKBENCH_DATABASE_DSN_VAR is missing from the credential store"
+
+previous_state="none"
+cleanup_tunnel=""
+if [[ "$WORKBENCH_DATABASE_TUNNEL" == "dev" || "$WORKBENCH_DATABASE_TUNNEL" == "prod" ]]; then
+  previous_state="$(workbench-wg status)"
+  if [[ "$previous_state" != "$WORKBENCH_DATABASE_TUNNEL" ]]; then
+    cleanup_tunnel="$WORKBENCH_DATABASE_TUNNEL"
+  fi
+  workbench-wg up "$WORKBENCH_DATABASE_TUNNEL"
+fi
+
+cleanup() {
+  exit_code=$?
+  trap - EXIT INT TERM HUP
+  if [[ -n "$cleanup_tunnel" && "${KEEP_WG:-0}" != "1" ]]; then
+    workbench-wg down "$cleanup_tunnel" >/dev/null || true
+  fi
+  exit "$exit_code"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
+harlequin -a postgres "$dsn" "$@"

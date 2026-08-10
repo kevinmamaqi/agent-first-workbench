@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+database_id="${1:-}"
+config_file="${WORKBENCH_DATABASE_CONFIG:-$HOME/.config/agent-first-workbench/databases.conf}"
+secret_file="${WORKBENCH_DATABASE_SECRETS:-$HOME/.config/agent-first-workbench/db.env}"
+dbhub_package="${WORKBENCH_DBHUB_PACKAGE:-@bytebase/dbhub@1.0.0}"
+
+fail() {
+  echo "workbench-db-mcp: $1" >&2
+  exit 1
+}
+
+file_mode() {
+  stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1" 2>/dev/null
+}
+
+file_owner() {
+  stat -f '%u' "$1" 2>/dev/null || stat -c '%u' "$1" 2>/dev/null
+}
+
+read_env_value() {
+  local wanted="$1" line key value
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line#export }"
+    [[ "$line" == *=* ]] || continue
+    key="${line%%=*}"
+    [[ "$key" == "$wanted" ]] || continue
+    value="${line#*=}"
+    if [[ ${#value} -ge 2 ]]; then
+      if [[ "${value:0:1}" == '"' && "${value: -1}" == '"' ]]; then
+        value="${value:1:${#value}-2}"
+      elif [[ "${value:0:1}" == "'" && "${value: -1}" == "'" ]]; then
+        value="${value:1:${#value}-2}"
+      fi
+    fi
+    printf '%s' "$value"
+    return 0
+  done < "$secret_file"
+  return 1
+}
+
+[[ -n "$database_id" && "$database_id" =~ ^[a-z0-9][a-z0-9-]*$ ]] || \
+  fail "usage: workbench-db-mcp DATABASE_ID"
+[[ -r "$config_file" ]] || fail "database map is not readable: $config_file"
+[[ -f "$secret_file" && ! -L "$secret_file" && -r "$secret_file" ]] || \
+  fail "credential store must be a readable regular file: $secret_file"
+[[ "$(file_mode "$secret_file")" == "600" ]] || fail "credential store must have mode 0600"
+[[ "$(file_owner "$secret_file")" == "$(id -u)" ]] || fail "credential store must be owned by the current user"
+
+# The map is trusted account configuration. It contains identifiers and routing,
+# never credentials.
+# shellcheck disable=SC1090
+source "$config_file"
+declare -F workbench_database >/dev/null || fail "database map does not define workbench_database"
+
+WORKBENCH_DATABASE_DSN_VAR=""
+WORKBENCH_DATABASE_TUNNEL=""
+workbench_database "$database_id" || fail "unknown database id: $database_id"
+[[ "$WORKBENCH_DATABASE_DSN_VAR" =~ ^[A-Z][A-Z0-9_]*$ ]] || \
+  fail "database map returned an invalid DSN variable"
+
+dsn="$(read_env_value "$WORKBENCH_DATABASE_DSN_VAR" || true)"
+[[ -n "$dsn" ]] || fail "$WORKBENCH_DATABASE_DSN_VAR is missing from the credential store"
+[[ "$dsn" != *$'\n'* && "$dsn" != *$'\r'* ]] || fail "DSN contains an unsupported newline"
+
+temporary_root="${TMPDIR:-/tmp}"
+config_dir="$(mktemp -d "${temporary_root%/}/workbench-db.XXXXXX")"
+dbhub_config="$config_dir/dbhub.toml"
+chmod 700 "$config_dir"
+umask 077
+
+child_pid=""
+cleanup() {
+  exit_code=$?
+  trap - EXIT INT TERM HUP
+  if [[ -n "$child_pid" ]] && kill -0 "$child_pid" 2>/dev/null; then
+    kill -TERM "$child_pid" 2>/dev/null || true
+    wait "$child_pid" 2>/dev/null || true
+  fi
+  rm -f -- "$dbhub_config"
+  rmdir -- "$config_dir" 2>/dev/null || true
+  exit "$exit_code"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
+normalized_dsn="${dsn//sslmode=prefer/sslmode=require}"
+export DBHUB_DSN="$normalized_dsn"
+unset dsn normalized_dsn
+
+printf '[[sources]]\nid = "default"\ndsn = "${DBHUB_DSN}"\nlazy = true\nquery_timeout = 30\n\n[[tools]]\nname = "execute_sql"\nsource = "default"\nreadonly = true\nmax_rows = 100\n\n[[tools]]\nname = "search_objects"\nsource = "default"\n' > "$dbhub_config"
+chmod 600 "$dbhub_config"
+
+npx -y "$dbhub_package" --config="$dbhub_config" <&0 &
+child_pid=$!
+set +e
+wait "$child_pid"
+child_status=$?
+set -e
+exit "$child_status"
