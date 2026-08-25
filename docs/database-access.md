@@ -64,8 +64,28 @@ workbench-wg down
 ```
 
 `dbui` starts the required tunnel and tears it down when Harlequin exits unless
-that tunnel was already active. Agent sessions bring up the selected tunnel as
-an explicit visible step before calling an Aurora-style MCP server.
+that tunnel was already active.
+
+Agent sessions own an explicit per-task lifecycle around Aurora MCP calls:
+
+```bash
+workbench-wg up dev       # or: up prod
+workbench-wg status       # must match the selected environment
+# Call only the matching read-only Aurora MCP server.
+workbench-wg down dev     # or: down prod
+workbench-wg status       # must report none
+```
+
+Cleanup is required after the final MCP call even when the query fails, times
+out, or is cancelled. If an agent sandbox blocks the helper, request approval
+for the exact `workbench-wg` command; do not fall back to another database or a
+direct client.
+
+`workbench-db-mcp` deliberately does not start a tunnel itself. MCP clients may
+launch dev and prod server processes together during session startup, while the
+two tunnels are mutually exclusive. Keeping tunnel selection in the visible
+task workflow prevents one idle MCP process from silently replacing another
+environment's route.
 
 ## MCP registration
 
