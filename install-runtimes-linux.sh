@@ -21,6 +21,13 @@ if [[ "$(uname -s)" != "Linux" ]]; then
   exit 1
 fi
 
+# Large downloads and extraction must not exhaust small tmpfs-backed /tmp.
+umask 077
+export TMPDIR="${TMPDIR:-$HOME/.cache/agent-first-workbench/tmp}"
+if [[ "$mode" == apply ]]; then
+  mkdir -p "$TMPDIR"
+fi
+
 run() {
   if [[ "$mode" == "dry-run" ]]; then
     printf 'would run:'
@@ -48,7 +55,7 @@ install_go() {
     return
   fi
   if [[ ! -x "$target/bin/go" ]]; then
-    temporary="$(mktemp -d /tmp/agent-first-workbench-go.XXXXXX)"
+    temporary="$(mktemp -d "${TMPDIR%/}/agent-first-workbench-go.XXXXXX")"
     metadata="$temporary/releases.json"
     curl -fsSL 'https://go.dev/dl/?mode=json&include=all' -o "$metadata"
     filename="$(jq -r --arg version "go$go_version" --arg arch "$go_arch" '
@@ -68,7 +75,7 @@ install_go() {
     install -d -m 700 "$HOME/.local/share/go"
     mv "$temporary/go" "$target"
     case "$temporary" in
-      /tmp/agent-first-workbench-go.*) rm -rf -- "$temporary" ;;
+      "${TMPDIR%/}"/agent-first-workbench-go.*) rm -rf -- "$temporary" ;;
       *) echo "refusing to remove unexpected temporary path: $temporary" >&2; exit 1 ;;
     esac
   fi

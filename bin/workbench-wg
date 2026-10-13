@@ -52,11 +52,11 @@ up_target() {
     *) fail "usage: workbench-wg up <dev|prod>" ;;
   esac
 
+  stop_interface "$other"
   if is_active "$selected"; then
     echo "$target already up"
     return
   fi
-  stop_interface "$other"
   stop_interface "$selected"
   sudo -n systemctl start "wg-quick@$selected.service"
   is_active "$selected" || fail "$target tunnel did not become active"

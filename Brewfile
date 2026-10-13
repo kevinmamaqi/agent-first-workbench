@@ -11,6 +11,7 @@ brew "jq"
 brew "ripgrep"
 brew "rtk"
 brew "uv"
+brew "vim"
 brew "yq"
 brew "zoxide"
 

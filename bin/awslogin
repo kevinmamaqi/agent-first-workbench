@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+usage: awslogin [PROFILE]
+
+Log in to an AWS IAM Identity Center profile. Local browser-capable shells use
+the normal PKCE flow; SSH, remote-workbench, and headless Linux shells use the
+device-code flow. When PROFILE is omitted, AWS_PROFILE is used.
+EOF
+}
+
+case "${1:-}" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+esac
+
+profile="${1:-${AWS_PROFILE:-}}"
+[[ -n "$profile" ]] || {
+  usage >&2
+  exit 2
+}
+[[ $# -le 1 ]] || {
+  usage >&2
+  exit 2
+}
+command -v aws >/dev/null 2>&1 || {
+  echo "awslogin: AWS CLI v2 is required" >&2
+  exit 127
+}
+
+login_arguments=(sso login --profile "$profile")
+if [[ "${WORKBENCH_LOCATION:-}" == "REMOTE" \
+  || -n "${SSH_CONNECTION:-}" \
+  || -n "${SSH_TTY:-}" \
+  || "$(uname -s)" == "Linux" && -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+  login_arguments+=(--use-device-code --no-browser)
+fi
+
+exec aws "${login_arguments[@]}"

@@ -18,11 +18,11 @@ usage: work [--remote|--local] [--session NAME] [--agent AGENT] WORKSPACE [TASK]
 Open a visibly labeled cmux workspace. Remote is the default.
 
 examples:
-  work each-cl
-  work each-cl --agent claude
-  work each-cl ENG-1234
-  work each-cl --session ENG-1234
-  work --local each-cl
+  work project
+  work project --agent claude
+  work project task-name
+  work project --session task-name
+  work --local project
 
 AGENT may be shell, claude, codex, or kimi. Re-running a remote workspace
 reconnects its existing tmux session; it does not start a second agent.
@@ -152,9 +152,9 @@ printf -v quoted_workspace '%q' "$workspace"
 printf -v quoted_account '%q' "$WORKBENCH_ACCOUNT"
 remote_start="cd $quoted_directory; export WORKBENCH_LOCATION=REMOTE WORKBENCH_WORKSPACE=$quoted_workspace; printf '\\033]0;REMOTE | $workspace\\007\\n\\033[1;31m[REMOTE] $WORKBENCH_ACCOUNT / $workspace\\033[0m\\n'"
 if [[ "$agent" != "shell" ]]; then
-  remote_start="$remote_start; $agent; exec /bin/bash -i"
+  remote_start="$remote_start; $agent; exec /bin/zsh -i"
 else
-  remote_start="$remote_start; exec /bin/bash -i"
+  remote_start="$remote_start; exec /bin/zsh -i"
 fi
 printf -v quoted_start '%q' "$remote_start"
 runner_command="/bin/bash -lc $quoted_start"

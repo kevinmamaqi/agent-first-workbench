@@ -19,3 +19,11 @@ This repository is a sanitized snapshot of a real personal setup. It publishes t
 
 The external denylist must remain outside this repository. Automated scanning is a safety net, not publication approval.
 
+`make check` includes ignored files and reports only filenames for pattern
+matches. It rejects credential-shaped files, history/log artifacts, and
+symlinks resolving outside the repository. Tests run without bytecode caches.
+
+Review every outgoing commit's content and message, including unpublished
+branches. Scan the final tree with an external denylist and inspect the exact
+staged files. A passing scan does not establish that every identifier is safe.
+

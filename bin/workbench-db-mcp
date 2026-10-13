@@ -41,7 +41,7 @@ read_env_value() {
   return 1
 }
 
-[[ -n "$database_id" && "$database_id" =~ ^[a-z0-9][a-z0-9-]*$ ]] || \
+[[ -n "$database_id" && "$database_id" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || \
   fail "usage: workbench-db-mcp DATABASE_ID"
 if [[ -z "$npx_command" ]]; then
   if [[ -x "$HOME/.local/bin/npx" ]]; then
@@ -67,14 +67,36 @@ source "$config_file"
 declare -F workbench_database >/dev/null || fail "database map does not define workbench_database"
 
 WORKBENCH_DATABASE_DSN_VAR=""
+# Routing is part of the shared map contract; this lazy MCP does not start VPNs.
+# shellcheck disable=SC2034
 WORKBENCH_DATABASE_TUNNEL=""
 workbench_database "$database_id" || fail "unknown database id: $database_id"
 [[ "$WORKBENCH_DATABASE_DSN_VAR" =~ ^[A-Z][A-Z0-9_]*$ ]] || \
   fail "database map returned an invalid DSN variable"
+[[ "$WORKBENCH_DATABASE_DSN_VAR" != *WRITE* ]] || fail "write DSNs cannot be registered with MCP"
 
 dsn="$(read_env_value "$WORKBENCH_DATABASE_DSN_VAR" || true)"
 [[ -n "$dsn" ]] || fail "$WORKBENCH_DATABASE_DSN_VAR is missing from the credential store"
 [[ "$dsn" != *$'\n'* && "$dsn" != *$'\r'* ]] || fail "DSN contains an unsupported newline"
+
+# Validate the selected identity/database without exposing credentials in argv.
+DBHUB_DSN="$dsn" DB_EXPECTED_NAME="${WORKBENCH_DATABASE_NAME:-}" \
+  DB_EXPECTED_USER="${WORKBENCH_DATABASE_READONLY_USER:-}" python3 - <<'PY' || \
+  fail "DSN does not match the configured read-only database identity"
+import os
+from urllib.parse import unquote, urlsplit
+try:
+    value = urlsplit(os.environ["DBHUB_DSN"])
+    if value.scheme not in ("postgres", "postgresql") or not value.hostname:
+        raise ValueError("invalid connection")
+    name, user = os.environ["DB_EXPECTED_NAME"], os.environ["DB_EXPECTED_USER"]
+    if name and unquote(value.path.lstrip("/")) != name:
+        raise ValueError("wrong database")
+    if user and unquote(value.username or "") != user:
+        raise ValueError("wrong identity")
+except ValueError:
+    raise SystemExit(1)
+PY
 
 temporary_root="${TMPDIR:-/tmp}"
 config_dir="$(mktemp -d "${temporary_root%/}/workbench-db.XXXXXX")"
@@ -83,6 +105,8 @@ chmod 700 "$config_dir"
 umask 077
 
 child_pid=""
+# Called by EXIT/signal traps.
+# shellcheck disable=SC2329
 cleanup() {
   exit_code=$?
   trap - EXIT INT TERM HUP
@@ -103,6 +127,8 @@ normalized_dsn="${dsn//sslmode=prefer/sslmode=require}"
 export DBHUB_DSN="$normalized_dsn"
 unset dsn normalized_dsn
 
+# DBHub expands the placeholder; the file must never contain the actual DSN.
+# shellcheck disable=SC2016
 printf '[[sources]]\nid = "default"\ndsn = "${DBHUB_DSN}"\nlazy = true\nquery_timeout = 30\n\n[[tools]]\nname = "execute_sql"\nsource = "default"\nreadonly = true\nmax_rows = 100\n\n[[tools]]\nname = "search_objects"\nsource = "default"\n' > "$dbhub_config"
 chmod 600 "$dbhub_config"
 

@@ -28,6 +28,10 @@ For a persistent Debian or Ubuntu agent host, see [Linux Agent Host](docs/linux-
 make check
 ```
 
+The Linux profile installs the same portable interactive core as the macOS
+profile—including Zsh, Atuin, fzf, Zoxide, Delta, Bat, Eza, Glow, and Helix—
+while keeping history, credentials, and agent state isolated per Unix account.
+
 `install.sh` changes nothing without `--apply`. Apply mode backs up existing target files before creating links.
 
 ## The Loop
@@ -35,8 +39,8 @@ make check
 ```text
 request task
   → agent explores existing code and work
-  → agent writes a spec
-  → human reviews the spec
+  → agree scope and consequential decisions
+  → agent writes a spec when the change needs one
   → agent implements one slice
   → checks verify the evidence
   → human reviews the diff and result
@@ -54,13 +58,16 @@ The repository is the control surface: instructions, specs, tools, checks, and e
 | visual review surfaces | explicit verification commands |
 | easy interruption and steering | bounded permissions and scope |
 
-Both meet at the same boundary: a reviewed specification before implementation and verifiable evidence afterward.
+Both meet at the same boundary: a clear behavior contract and verifiable evidence.
+Routine reversible work proceeds within the user's authorization; consequential
+actions use the project's explicit approval boundary. See
+[agent instructions](docs/agent-instructions.md).
 
 ## What I Use
 
 - **Workspace:** [cmux](https://github.com/manaflow-ai/cmux) + [Ghostty](https://github.com/ghostty-org/ghostty)
 - **Agents:** Claude Code + Codex + Kimi Code
-- **Editing:** [Helix](https://helix-editor.com/) and Vim-style interaction
+- **Editing:** [Helix](https://helix-editor.com/), full Vim, and [MarkEdit](https://github.com/MarkEdit-app/MarkEdit) for editable macOS Markdown
 - **Navigation:** [ripgrep](https://github.com/BurntSushi/ripgrep), [fd](https://github.com/sharkdp/fd), [fzf](https://github.com/junegunn/fzf), [Zoxide](https://github.com/ajeetdsouza/zoxide), and [Atuin](https://docs.atuin.sh/)
 - **Review:** [Delta](https://github.com/dandavison/delta), [Bat](https://github.com/sharkdp/bat), and [Glow](https://github.com/charmbracelet/glow)
 - **Structured data:** [jq](https://jqlang.org/) + [mikefarah/yq](https://github.com/mikefarah/yq)
@@ -115,9 +122,30 @@ work project --agent claude  # optionally start an agent immediately
 work --local project         # LOCAL-project
 ```
 
+AWS IAM Identity Center login uses the same explicit helpers locally and on a
+remote agent host:
+
+```bash
+awslogin PROFILE             # browser locally; device code remotely
+```
+
 Real workspace aliases, hosts, accounts, and paths live only in a private
 `~/.config/agent-first-workbench/workspaces.conf`; start from the sanitized
 `config/workspaces.conf.example`.
+
+## Current additions
+
+The October 2026 update includes Linux shell/editor parity, private scratch
+space, phone tmux sessions, explicit database targets, and AWS SSO login:
+
+- [Terminal and editor review](docs/terminal-review.md)
+- [Phone SSH sessions](docs/phone-work.md)
+- [Codex permissions and unattended work](docs/codex-workflow.md)
+- [Optional official Google Colab MCP](docs/colab-mcp.md)
+
+Real account configuration, credentials, and private project work stay outside
+this repository. Privacy checks include ignored files and report filenames
+without displaying matched credential text.
 
 ## License
 

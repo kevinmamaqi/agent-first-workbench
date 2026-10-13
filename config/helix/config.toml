@@ -1,0 +1,21 @@
+theme = "dark_plus"
+
+[editor]
+line-number = "relative"
+cursorline = true
+bufferline = "multiple"
+popup-border = "all"
+true-color = true
+color-modes = true
+end-of-line-diagnostics = "hint"
+
+[editor.cursor-shape]
+normal = "block"
+insert = "bar"
+select = "underline"
+
+[editor.indent-guides]
+render = true
+
+[editor.file-picker]
+hidden = false

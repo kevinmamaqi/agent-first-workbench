@@ -101,3 +101,48 @@ configuration contains only the executable path and database identifier.
 Starting all clients does not connect to a database: DBHub sources are lazy.
 Configuration validation must stop before SQL. Prove role grants through a
 controlled DBA provisioning/review path, not with mutation probes.
+
+## Explicit human targets
+
+With a private map that defines `billing_dev` and `billing_prod`:
+
+```bash
+dbui dev billing
+dbui prod billing
+dbui billing_prod
+dbui write dev
+dbui write prod
+```
+
+The two-argument form resolves `DATABASE_ENV` in `databases.conf`. Maps can
+set `WORKBENCH_DATABASE_NAME` and `WORKBENCH_DATABASE_READONLY_USER` to reject
+a DSN for the wrong database or identity. Ordinary targets use TLS and a
+read-only session; database grants remain the hard permission boundary.
+Harlequin receives connection fields in its child environment, not argv.
+
+The human write connections live in a separate, owner-only `db-write.env`,
+with `DATABASE_WRITE_DEV_DSN` and `DATABASE_WRITE_PROD_DSN`. Select the
+environment explicitly with `dbui write dev` or `dbui write prod`. Each
+requires a writable server session and is never registered with MCP.
+The MCP wrapper rejects DSN variable names containing `WRITE` and validates
+the optional expected database and identity before starting DBHub.
+
+The default remains a dry-run-first private installation. Existing DSNs must
+be preserved in place; fill new placeholders independently on each machine.
+
+## macOS lifecycle pattern
+
+The shipped controller uses Linux systemd. For a separate macOS controller,
+use one lifecycle owner. This is a recipe, not an installed implementation:
+
+- Create an owner-only ephemeral configuration. Where appropriate, remove
+  `DNS` from that snapshot and pin its MTU to avoid DNS-monitor feedback.
+  Preserve the original peer configuration.
+- Repair partial interface state and stop the other environment before treating
+  the selected tunnel as already active.
+- Bound readiness probes; report status without exposing configuration values.
+- Track whether this invocation started the tunnel. Cleanup preserves tunnels
+  that were active before the command.
+
+See [wg-quick documentation](https://git.zx2c4.com/wireguard-tools/about/src/man/wg-quick.8)
+for platform behavior. Never start real peers during publication checks.

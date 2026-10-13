@@ -1,81 +1,167 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env python3
+"""Human database UI: explicit routing, read-only defaults, no DSNs in argv."""
+import os
+from pathlib import Path
+import re
+import shutil
+import signal
+import stat
+import subprocess
+import sys
+from urllib.parse import parse_qsl, unquote, urlsplit
 
-database_id="${1:-}"
-config_file="${WORKBENCH_DATABASE_CONFIG:-$HOME/.config/agent-first-workbench/databases.conf}"
-secret_file="${WORKBENCH_DATABASE_SECRETS:-$HOME/.config/agent-first-workbench/db.env}"
 
-fail() {
-  echo "dbui: $1" >&2
-  exit 1
-}
+class ConfigError(Exception):
+    pass
 
-file_mode() {
-  stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null
-}
 
-read_env_value() {
-  local wanted="$1" line key value
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line#export }"
-    [[ "$line" == *=* ]] || continue
-    key="${line%%=*}"
-    [[ "$key" == "$wanted" ]] || continue
-    value="${line#*=}"
-    if [[ ${#value} -ge 2 ]]; then
-      if [[ "${value:0:1}" == '"' && "${value: -1}" == '"' ]]; then
-        value="${value:1:${#value}-2}"
-      elif [[ "${value:0:1}" == "'" && "${value: -1}" == "'" ]]; then
-        value="${value:1:${#value}-2}"
-      fi
-    fi
-    printf '%s' "$value"
-    return 0
-  done < "$secret_file"
-  return 1
-}
+def read_store(path):
+    if path.is_symlink() or not path.is_file():
+        raise ConfigError(f"credential store must be a regular file: {path}")
+    info = path.stat()
+    if stat.S_IMODE(info.st_mode) != 0o600 or info.st_uid != os.getuid():
+        raise ConfigError("credential store must be owned by you with mode 0600")
+    values = {}
+    for line in path.read_text().splitlines():
+        line = line.removeprefix("export ")
+        key, sep, value = line.partition("=")
+        if sep and re.fullmatch(r"[A-Z][A-Z0-9_]*", key):
+            if key in values:
+                raise ConfigError(f"duplicate credential key: {key}")
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1]
+            values[key] = value
+    return values
 
-if [[ -z "$database_id" ]]; then
-  exec harlequin
-fi
-shift
 
-[[ -r "$config_file" ]] || fail "database map is not readable: $config_file"
-[[ -f "$secret_file" && ! -L "$secret_file" && -r "$secret_file" ]] || \
-  fail "credential store must be a readable regular file: $secret_file"
-[[ "$(file_mode "$secret_file")" == "600" ]] || fail "credential store must have mode 0600"
+def resolve_target(config, target):
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", target):
+        raise ConfigError("invalid database target")
+    script = 'set -e\nsource "$1"\nWORKBENCH_DATABASE_DSN_VAR=""\nWORKBENCH_DATABASE_TUNNEL=""\nWORKBENCH_DATABASE_NAME=""\nWORKBENCH_DATABASE_READONLY_USER=""\nworkbench_database "$2" || exit 2\nprintf \'%s\\n\' "$WORKBENCH_DATABASE_DSN_VAR" "$WORKBENCH_DATABASE_TUNNEL" "$WORKBENCH_DATABASE_NAME" "$WORKBENCH_DATABASE_READONLY_USER"\n'
+    result = subprocess.run(["bash", "-c", script, "dbui-map", str(config), target],
+                            capture_output=True, text=True)
+    if result.returncode:
+        raise ConfigError(f"unknown database target: {target}")
+    fields = result.stdout.splitlines()
+    if len(fields) != 4 or not re.fullmatch(r"[A-Z][A-Z0-9_]*", fields[0]):
+        raise ConfigError("invalid database map")
+    if fields[1] not in ("dev", "prod", "none"):
+        raise ConfigError("invalid tunnel in database map")
+    return fields
 
-# shellcheck disable=SC1090
-source "$config_file"
-declare -F workbench_database >/dev/null || fail "database map does not define workbench_database"
-WORKBENCH_DATABASE_DSN_VAR=""
-WORKBENCH_DATABASE_TUNNEL=""
-workbench_database "$database_id" || fail "unknown database id: $database_id"
 
-dsn="$(read_env_value "$WORKBENCH_DATABASE_DSN_VAR" || true)"
-[[ -n "$dsn" ]] || fail "$WORKBENCH_DATABASE_DSN_VAR is missing from the credential store"
+def connection_env(dsn, expected_name="", expected_user="", write=False):
+    try:
+        parsed = urlsplit(dsn)
+        port = parsed.port or 5432
+    except ValueError:
+        raise ConfigError("invalid DSN syntax") from None
+    if parsed.scheme not in ("postgres", "postgresql") or not parsed.hostname or not parsed.username:
+        raise ConfigError("DSN requires a PostgreSQL host and user")
+    if any(c.isspace() for c in dsn) or parsed.fragment:
+        raise ConfigError("DSN must use URL encoding, with no spaces or fragment")
+    user = unquote(parsed.username)
+    password = unquote(parsed.password or "")
+    name = unquote(parsed.path.removeprefix("/"))
+    if not name or not password or password == "pwd" or user == "WRITE_USER" or name == "DB_NAME":
+        raise ConfigError("fill in the DSN placeholders in the private credential store first")
+    if expected_name and name != expected_name:
+        raise ConfigError("DSN database does not match the requested target")
+    if expected_user and user != expected_user:
+        raise ConfigError("DSN user does not match the configured read-only identity")
+    options = dict(parse_qsl(parsed.query, strict_parsing=True))
+    supported = {"sslmode", "sslrootcert", "sslcert", "sslkey", "connect_timeout",
+                 "application_name", "options", "target_session_attrs"}
+    if options.keys() - supported:
+        raise ConfigError("DSN has unsupported connection options")
+    sslmode = options.get("sslmode", "require")
+    if sslmode == "prefer":
+        sslmode = "require"
+    if sslmode not in ("require", "verify-ca", "verify-full"):
+        raise ConfigError("DSN must require TLS")
+    child_env = {k: v for k, v in os.environ.items() if not k.startswith("PG")}
+    child_env.update(PGHOST=parsed.hostname, PGPORT=str(port), PGUSER=user,
+                     PGPASSWORD=password, PGDATABASE=name, PGSSLMODE=sslmode)
+    for key in ("sslrootcert", "sslcert", "sslkey", "connect_timeout", "application_name"):
+        if key in options:
+            env_key = {"connect_timeout": "PGCONNECT_TIMEOUT", "application_name": "PGAPPNAME"}.get(key, "PG" + key.upper())
+            child_env[env_key] = options[key]
+    mode = "off" if write else "on"
+    child_env["PGOPTIONS"] = (options.get("options", "") + " -c default_transaction_read_only=" + mode).strip()
+    child_env["PGTARGETSESSIONATTRS"] = "read-write" if write else "read-only"
+    return child_env
 
-previous_state="none"
-cleanup_tunnel=""
-if [[ "$WORKBENCH_DATABASE_TUNNEL" == "dev" || "$WORKBENCH_DATABASE_TUNNEL" == "prod" ]]; then
-  previous_state="$(workbench-wg status)"
-  if [[ "$previous_state" != "$WORKBENCH_DATABASE_TUNNEL" ]]; then
-    cleanup_tunnel="$WORKBENCH_DATABASE_TUNNEL"
-  fi
-  workbench-wg up "$WORKBENCH_DATABASE_TUNNEL"
-fi
 
-cleanup() {
-  exit_code=$?
-  trap - EXIT INT TERM HUP
-  if [[ -n "$cleanup_tunnel" && "${KEEP_WG:-0}" != "1" ]]; then
-    workbench-wg down "$cleanup_tunnel" >/dev/null || true
-  fi
-  exit "$exit_code"
-}
-trap cleanup EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
-trap 'exit 129' HUP
+def run_client(child_env, tunnel, ui_args):
+    helper = os.environ.get("WORKBENCH_WG_HELPER") or shutil.which("workbench-wg")
+    if not helper:
+        candidate = Path.home() / ".claude/bin/wg-env.sh"
+        if candidate.is_file():
+            helper = str(candidate)
+    owned = False
+    try:
+        if tunnel != "none":
+            if not helper:
+                raise ConfigError("WireGuard helper is missing")
+            previous = subprocess.check_output([helper, "status"], text=True).strip()
+            owned = previous != tunnel
+            subprocess.run([helper, "up", tunnel], check=True)
+        return subprocess.call(["harlequin", "--config-path", os.devnull,
+                                "--profile", "None", "-a", "postgres", *ui_args], env=child_env)
+    finally:
+        if owned and os.environ.get("KEEP_WG") != "1":
+            subprocess.run([helper, "down", tunnel], check=False)
 
-harlequin -a postgres "$dsn" "$@"
+
+def main(args):
+    if args and args[0] in ("--help", "-h"):
+        print("Usage: dbui dev|prod [DATABASE] [--theme THEME] [--limit ROWS]\n"
+              "       dbui DATABASE_dev|DATABASE_prod\n"
+              "       dbui write dev|prod  # separate human write DSNs\n"
+              "       dbui [Harlequin options or local file]")
+        return 0
+    if not args or args[0].startswith("-") or "/" in args[0] or (args[0] not in ("dev", "prod", "write") and Path(args[0]).exists()):
+        return subprocess.call(["harlequin", *args])
+    target, *remaining = args
+    write_environment = None
+    if target == "write":
+        if not remaining or remaining[0] not in ("dev", "prod"):
+            raise ConfigError("choose a write environment: dbui write dev|prod")
+        write_environment = remaining.pop(0)
+    if target in ("dev", "prod") and remaining and not remaining[0].startswith("-"):
+        target = remaining.pop(0) + "_" + target
+    allowed = {"--theme", "--limit", "--keymap-name", "--show-files"}
+    if len(remaining) % 2 or any(remaining[i] not in allowed for i in range(0, len(remaining), 2)):
+        raise ConfigError("only display options are allowed after a database target")
+    config_root = Path.home() / ".config/agent-first-workbench"
+    if target == "write":
+        store = Path(os.environ.get("WORKBENCH_DATABASE_WRITE_SECRETS", config_root / "db-write.env"))
+        values = read_store(store)
+        tunnel = write_environment
+        key = f"DATABASE_WRITE_{tunnel.upper()}_DSN"
+        if not values.get(key):
+            raise ConfigError(f"{key} is missing from {store}")
+        child_env = connection_env(values[key], write=True)
+        print(f"dbui: WRITE / {tunnel} / {child_env['PGDATABASE']}", file=sys.stderr)
+    else:
+        config = Path(os.environ.get("WORKBENCH_DATABASE_CONFIG", config_root / "databases.conf"))
+        key, tunnel, name, user = resolve_target(config, target)
+        store = Path(os.environ.get("WORKBENCH_DATABASE_SECRETS", config_root / "db.env"))
+        values = read_store(store)
+        if not values.get(key):
+            raise ConfigError(f"{key} is missing from {store}")
+        child_env = connection_env(values[key], name, user)
+        print(f"dbui: READ ONLY / {tunnel} / {child_env['PGDATABASE']}", file=sys.stderr)
+    return run_client(child_env, tunnel, remaining)
+
+
+if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except (ConfigError, OSError, ValueError, subprocess.CalledProcessError) as exc:
+        message = str(exc) if isinstance(exc, ConfigError) else "configuration or client launch failed"
+        print("dbui: " + message, file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(130)

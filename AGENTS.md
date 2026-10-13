@@ -1,5 +1,8 @@
 # Agent Instructions
 
+- Read the closest task instructions; keep domain detail beside the work.
+- Carry authorized work through checks and handoff; ask at actual unresolved authorization boundaries.
+- Preserve user decisions, unrelated changes, completed work, blockers, and evidence paths across handoffs.
 - Use `rg` for content search and `rg --files` or `fd` for discovery.
 - Use `jq` and `yq` for structured data.
 - Prefer read-only commands and synthetic examples.

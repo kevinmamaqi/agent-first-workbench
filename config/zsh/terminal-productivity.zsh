@@ -23,6 +23,10 @@ f() {
   [[ -n "$file" ]] && "$EDITOR" "$file"
 }
 
+ff() {
+  f --follow "$@"
+}
+
 s() {
   local query selected file line
   query="$*"
@@ -56,15 +60,48 @@ cmark() {
   cmux markdown open "${1:?usage: cmark <file.md>}"
 }
 
+mdopen() {
+  local file="${1:-}"
+  if [[ "$(uname -s)" != Darwin ]]; then
+    echo 'mdopen requires macOS; use f or md on this host.' >&2
+    return 1
+  fi
+  if [[ -z "$file" ]]; then
+    file="$(fd --type f --print0 "${_workbench_fd_base[@]}" -e md -e markdown -e mdx \
+      | fzf --read0 --prompt='mdopen> ' --preview 'bat --color=always --paging=never {}')" || return
+  fi
+  [[ -n "$file" ]] && open -a MarkEdit "$file"
+}
+
+preview() {
+  (( $# )) || { echo 'usage: preview FILE [FILE...]' >&2; return 2; }
+  local file
+  for file in "$@"; do
+    case "${file:l}" in
+      *.md|*.markdown|*.mdx)
+        if [[ "$(uname -s)" == Darwin ]]; then
+          open -a MarkEdit "$file" || return
+        else
+          "$EDITOR" "$file" || return
+        fi
+        ;;
+      *) cmux open "$file" --no-focus || return ;;
+    esac
+  done
+}
+
 cdiff() {
   cmux diff --source "${1:-unstaged}"
 }
 
 if command -v atuin >/dev/null 2>&1; then
-  eval "$(atuin init zsh --disable-up-arrow --disable-ai)"
+  if atuin init zsh --help 2>&1 | grep -q -- '--disable-ai'; then
+    eval "$(atuin init zsh --disable-ai)"
+  else
+    eval "$(atuin init zsh)"
+  fi
 fi
 
 if command -v zoxide >/dev/null 2>&1; then
   eval "$(zoxide init zsh --cmd z)"
 fi
-

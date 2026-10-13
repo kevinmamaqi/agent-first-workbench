@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+usage: work [--plain|--control] "session name"
+
+Create or reconnect to an exact tmux session in WORKBENCH_PHONE_CWD.
+Control mode is the default for terminals with native tmux support.
+Use --plain in a conventional SSH terminal. Existing sessions keep their
+directory and processes. Multiple clients sharing a session stay in place.
+EOF
+}
+
+mode=control
+case "${1:-}" in
+  --help|-h) usage; exit 0 ;;
+  --plain) mode=plain; shift ;;
+  --control) shift ;;
+esac
+[[ $# == 1 ]] || { usage >&2; exit 2; }
+name=$1
+if [[ ${#name} -gt 128 || ! "$name" =~ ^[[:alnum:]][[:alnum:]\ _-]*$ ]]; then
+  echo 'Use 1-128 letters, numbers, spaces, underscores or hyphens; start with a letter or number.' >&2
+  exit 2
+fi
+command -v tmux >/dev/null || { echo 'tmux is not installed.' >&2; exit 1; }
+if [[ -z "${TMUX:-}" && ( ! -t 0 || ! -t 1 ) ]]; then
+  echo 'Run work from an interactive SSH terminal.' >&2
+  exit 1
+fi
+
+target="=$name"
+if ! tmux has-session -t "$target" 2>/dev/null; then
+  directory="${WORKBENCH_PHONE_CWD:-}"
+  [[ -n "$directory" && -d "$directory" ]] || {
+    echo 'Set WORKBENCH_PHONE_CWD to an existing private workspace directory.' >&2
+    exit 1
+  }
+  if ! tmux new-session -d -s "$name" -c "$directory"; then
+    tmux has-session -t "$target" 2>/dev/null || exit 1
+  fi
+fi
+
+if [[ -n "${TMUX:-}" ]]; then
+  current=$(tmux display-message -p -t "${TMUX_PANE:?Missing tmux pane}" '#{session_id}')
+  # A read loop also supports the Bash version shipped with macOS.
+  clients=()
+  while IFS= read -r client; do
+    [[ -n "$client" ]] && clients+=("$client")
+  done < <(tmux list-clients -t "$current" -F '#{client_name}')
+  if [[ ${#clients[@]} == 1 ]]; then
+    exec tmux switch-client -c "${clients[0]}" -t "$target"
+  fi
+  printf 'Session "%s" is ready. Select it in your terminal session dashboard.\n' "$name"
+  exit 0
+fi
+
+if [[ "$mode" == control ]]; then
+  exec tmux -CC attach-session -t "$target"
+fi
+exec tmux attach-session -t "$target"

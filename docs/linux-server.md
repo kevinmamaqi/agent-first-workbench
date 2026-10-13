@@ -5,6 +5,12 @@ terminal-first agent workspace. It installs shared CLI prerequisites and the
 native Codex, Claude Code, and Kimi Code clients, but it does not copy any
 credentials or authenticate any account.
 
+The system installer currently targets amd64 and requires repositories that
+provide the listed terminal packages (including Atuin, Eza, Glow, and Delta).
+It checks package availability before installation. Older distributions may
+need separately provisioned tools; use `--user-only` for configuration on an
+already prepared host.
+
 ```bash
 git clone https://github.com/kevinmamaqi/agent-first-workbench.git
 cd agent-first-workbench
@@ -22,6 +28,22 @@ On a multi-user server, split the operation so workload users remain non-admin:
 # Once from each isolated workload account
 ./install-linux.sh --apply --user-only
 ```
+
+Use `--skip-agents` on the per-user pass when the agent CLIs are already
+installed and only terminal/configuration parity needs to be refreshed. The
+Linux baseline includes Zsh, Atuin, fzf, Zoxide, Delta, Bat, Eza, Glow, Helix,
+and the same portable shell helpers as the macOS setup. Atuin history and keys
+remain private to each Unix account and automatic sync stays disabled.
+
+Set Zsh as the workload account's login shell from the administrator account:
+
+```bash
+sudo usermod --shell /bin/zsh WORKLOAD_USER
+```
+
+The tmux profile also selects Zsh for new panes. Existing panes keep their
+current shell until they are replaced; they still gain immediate append/share
+history behavior after re-sourcing the Bash profile.
 
 Install the primary language runtimes and code graph separately as the workload
 user:
@@ -44,6 +66,15 @@ that should carry those files with `rtk init --agent kimi`.
 
 The Bash profile applies `umask 077`, so new per-account credentials and agent
 artifacts are private by default.
+
+Bash and Zsh share runtime paths and account-local defaults for `TMPDIR`,
+`GOCACHE`, and `GOTMPDIR`; system installer staging uses `/var/tmp`. Existing
+overrides are preserved. See [Codex workflow](codex-workflow.md).
+
+Full Vim and the portable Helix profile are included. See
+[terminal review](terminal-review.md) and [phone sessions](phone-work.md) for
+editor basics and the Linux `work` command. The Mac launcher keeps its
+separate workspace-map syntax.
 
 The system scope also installs WireGuard and the PostgreSQL command-line client.
 Those are human/admin facilities: coding agents use only the constrained MCP
@@ -73,6 +104,21 @@ kimi
 gh auth login --web --git-protocol ssh
 aws sso login --profile PROFILE --use-device-code
 ```
+
+The installed helpers keep the same commands across macOS and Linux:
+
+```bash
+awslogin PROFILE
+```
+
+`awslogin` opens the normal browser flow on a local desktop and selects the
+device-code flow over SSH or in a headless Linux shell. A private host profile
+can export its preferred `AWS_PROFILE` so agents use plain `aws` commands after
+the SSO session has been cached.
+
+Configure profiles with `aws configure sso` first. The helper changes the login
+flow; permissions remain those of the selected profile. See the
+[AWS SSO reference](https://docs.aws.amazon.com/cli/latest/reference/sso/login.html).
 
 The three example agent configuration files under `config/agents/` contain only
 public-safe preferences. They deliberately omit authentication, project trust,

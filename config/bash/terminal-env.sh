@@ -6,13 +6,8 @@ export LESS="${LESS:--R --quit-if-one-screen --no-init}"
 # Agent hosts commonly hold per-account credentials and generated artifacts.
 umask 077
 
-export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
-export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-export PATH="$HOME/.local/bin:$HOME/.local/go/bin:$HOME/go/bin:$BUN_INSTALL/bin:$HOME/.kimi-code/bin:$PATH"
-
-if [[ -s "$NVM_DIR/nvm.sh" ]]; then
-  # shellcheck disable=SC1090
-  source "$NVM_DIR/nvm.sh"
+if [[ -r "$HOME/.config/agent-first-workbench/session-env.sh" ]]; then
+  source "$HOME/.config/agent-first-workbench/session-env.sh"
 fi
 
 alias gd='git diff'
@@ -23,3 +18,30 @@ alias ll='ls -lah'
 agent-session() {
   tmux new-session -A -s "${1:-main}"
 }
+
+if [[ $- == *i* ]]; then
+  HISTCONTROL="${HISTCONTROL:-ignoreboth}:erasedups"
+  HISTSIZE="${HISTSIZE:-100000}"
+  HISTFILESIZE="${HISTFILESIZE:-200000}"
+  shopt -s histappend
+
+  _workbench_history_sync() {
+    history -a
+    history -n
+  }
+  case ";${PROMPT_COMMAND:-};" in
+    *';_workbench_history_sync;'*) ;;
+    *) PROMPT_COMMAND="_workbench_history_sync${PROMPT_COMMAND:+;$PROMPT_COMMAND}" ;;
+  esac
+
+  if command -v zoxide >/dev/null 2>&1; then
+    eval "$(zoxide init bash --cmd z)"
+  fi
+  if command -v atuin >/dev/null 2>&1; then
+    if atuin init bash --help 2>&1 | grep -q -- '--disable-ai'; then
+      eval "$(atuin init bash --disable-ai)"
+    else
+      eval "$(atuin init bash)"
+    fi
+  fi
+fi

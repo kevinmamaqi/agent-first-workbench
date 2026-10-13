@@ -49,4 +49,16 @@ Agent configuration references:
 - Codex MCP configuration: https://developers.openai.com/codex/mcp
 - Kimi MCP configuration: https://moonshotai.github.io/kimi-cli/en/customization/mcp.html
 
-Last reviewed: 2026-08-10.
+Additional October references:
+
+- Codex rules: https://learn.chatgpt.com/docs/agent-configuration/rules
+- Codex MCP: https://learn.chatgpt.com/docs/extend/mcp?surface=cli
+- Official Colab MCP: https://github.com/googlecolab/colab-mcp (Apache-2.0)
+- Helix configuration: https://docs.helix-editor.com/configuration.html
+- Vim: https://github.com/vim/vim (Vim license)
+- MarkEdit: https://github.com/MarkEdit-app/MarkEdit (MIT)
+- AWS SSO flags: https://docs.aws.amazon.com/cli/latest/reference/sso/login.html
+- WireGuard options: https://git.zx2c4.com/wireguard-tools/about/src/man/wg-quick.8
+
+October additions reviewed: 2026-10-13. Earlier references retain their
+2026-08-10 review date; not every upstream was re-audited.
