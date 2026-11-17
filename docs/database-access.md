@@ -4,6 +4,8 @@ Database access has two deliberately separate interfaces:
 
 - `dbui DATABASE_ID` opens Harlequin for a human operator.
 - `workbench-db-mcp DATABASE_ID` starts a constrained DBHub server for an agent.
+- `workbench-db-group-mcp GROUP_ID` serves several databases from one DBHub
+  server, one `execute_sql_<source>` and `search_objects_<source>` tool each.
 
 Both resolve the same account-local database map and `0600` credential store,
 but agents must never invoke Harlequin, a PostgreSQL CLI, or read the credential
@@ -37,6 +39,20 @@ workbench_database() {
       WORKBENCH_DATABASE_DSN_VAR="APP_PROD_DB_DSN"
       WORKBENCH_DATABASE_TUNNEL="prod"
       ;;
+    *) return 1 ;;
+  esac
+}
+```
+
+Optionally, group databases that share a host and read-only identity so one
+MCP server serves them all. Each line is `SOURCE_ID DATABASE_ID`; the source ID
+becomes the tool suffix. An optional `workbench_database_dsn_rewrite` hook can
+redirect every DSN, for example to a local SSH forward:
+
+```bash
+workbench_database_group() {
+  case "$1" in
+    app-prod) printf '%s\n' "app app-prod" "billing billing-prod" ;;
     *) return 1 ;;
   esac
 }
@@ -89,12 +105,15 @@ environment's route.
 
 ## MCP registration
 
-Register the same three wrapper invocations in every client. Client
-configuration contains only the executable path and database identifier.
+Register the same wrapper invocations in every client. Client configuration
+contains only the executable path and database or group identifier. Prefer one
+group server per environment over one server per database: every server is a
+separate process per session, and each must be reconnected when a tunnel drops.
 
-- Codex: `[mcp_servers.NAME]` with `enabled_tools = ["execute_sql",
-  "search_objects"]` and `default_tools_approval_mode = "prompt"`.
-- Claude Code: `claude mcp add -s user NAME -- workbench-db-mcp DATABASE_ID`.
+- Codex: `[mcp_servers.NAME]` with `enabled_tools` listing `execute_sql` and
+  `search_objects` (or the `_<source>` names of a group server) and `default_tools_approval_mode = "prompt"`.
+- Claude Code: `claude mcp add -s user NAME -- workbench-db-mcp DATABASE_ID`
+  or `-- workbench-db-group-mcp GROUP_ID`.
 - Kimi Code: `~/.kimi/mcp.json` with stdio `command` and `args`. Kimi prompts
   for MCP tool calls when YOLO/AFK mode is off.
 

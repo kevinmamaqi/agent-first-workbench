@@ -9,7 +9,7 @@ fail() {
   exit 1
 }
 
-bash -n install.sh install-linux.sh install-runtimes-linux.sh scripts/check-public.sh scripts/check-private-files.sh scripts/build-code-graphs.sh scripts/install-code-graph-service.sh config/bash/terminal-env.sh config/shell/session-env.sh bin/workbench-session bin/workbench-phone-session bin/workbench-open-bridge bin/cmux-remote bin/workbench-db-mcp bin/workbench-wg bin/awslogin
+bash -n install.sh install-linux.sh install-runtimes-linux.sh scripts/check-public.sh scripts/check-private-files.sh scripts/build-code-graphs.sh scripts/install-code-graph-service.sh config/bash/terminal-env.sh config/shell/session-env.sh bin/workbench-session bin/workbench-phone-session bin/workbench-open-bridge bin/cmux-remote bin/workbench-db-mcp bin/workbench-db-group-mcp bin/workbench-wg bin/awslogin
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p "test_*.py"
 zsh -n config/zsh/terminal-env.zsh config/zsh/terminal-productivity.zsh
 jq empty config/cmux/cmux.json
@@ -28,6 +28,7 @@ python3 -c 'import pathlib, tomllib; tomllib.loads(pathlib.Path("config/helix/co
 [[ -x bin/cmux-remote ]] || fail "remote cmux shim is not executable"
 [[ -x bin/workbench-db-ui ]] || fail "database UI launcher is not executable"
 [[ -x bin/workbench-db-mcp ]] || fail "database MCP wrapper is not executable"
+[[ -x bin/workbench-db-group-mcp ]] || fail "database group MCP wrapper is not executable"
 [[ -x bin/workbench-wg ]] || fail "WireGuard controller is not executable"
 [[ -x bin/awslogin ]] || fail "AWS SSO login helper is not executable"
 [[ -x scripts/build-code-graphs.sh ]] || fail "code graph builder is not executable"

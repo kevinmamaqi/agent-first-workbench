@@ -284,6 +284,7 @@ if [[ "$scope" != "system" ]]; then
   install_link "$root/config/helix/config.toml" "$HOME/.config/helix/config.toml"
   install_link "$root/bin/workbench-db-ui" "$HOME/.local/bin/dbui"
   install_link "$root/bin/workbench-db-mcp" "$HOME/.local/bin/workbench-db-mcp"
+  install_link "$root/bin/workbench-db-group-mcp" "$HOME/.local/bin/workbench-db-group-mcp"
   install_link "$root/bin/workbench-wg" "$HOME/.local/bin/workbench-wg"
   install_link "$root/bin/awslogin" "$HOME/.local/bin/awslogin"
   install_link "$root/bin/workbench-phone-session" "$HOME/.local/bin/work"

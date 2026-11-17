@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+# One read-only DBHub MCP server for a group of databases (for example every
+# database of one environment). DBHub exposes execute_sql_<source> and
+# search_objects_<source> per member. DSNs reach DBHub only through
+# per-source environment variables, never argv or the generated config.
+set -euo pipefail
+
+group_id="${1:-}"
+config_file="${WORKBENCH_DATABASE_CONFIG:-$HOME/.config/agent-first-workbench/databases.conf}"
+secret_file="${WORKBENCH_DATABASE_SECRETS:-$HOME/.config/agent-first-workbench/db.env}"
+dbhub_package="${WORKBENCH_DBHUB_PACKAGE:-@bytebase/dbhub@1.0.0}"
+npx_command="${WORKBENCH_NPX:-}"
+
+fail() {
+  echo "workbench-db-group-mcp: $1" >&2
+  exit 1
+}
+
+file_mode() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null; }
+file_owner() { stat -c '%u' "$1" 2>/dev/null || stat -f '%u' "$1" 2>/dev/null; }
+
+read_env_value() {
+  local wanted="$1" line key value
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line#export }"
+    [[ "$line" == *=* ]] || continue
+    key="${line%%=*}"
+    [[ "$key" == "$wanted" ]] || continue
+    value="${line#*=}"
+    if [[ ${#value} -ge 2 ]]; then
+      if [[ "${value:0:1}" == '"' && "${value: -1}" == '"' ]]; then
+        value="${value:1:${#value}-2}"
+      elif [[ "${value:0:1}" == "'" && "${value: -1}" == "'" ]]; then
+        value="${value:1:${#value}-2}"
+      fi
+    fi
+    printf '%s' "$value"
+    return 0
+  done < "$secret_file"
+  return 1
+}
+
+[[ -n "$group_id" && "$group_id" =~ ^[a-z0-9][a-z0-9-]*$ ]] || \
+  fail "usage: workbench-db-group-mcp GROUP_ID"
+if [[ -z "$npx_command" ]]; then
+  if [[ -x "$HOME/.local/bin/npx" ]]; then npx_command="$HOME/.local/bin/npx"; else npx_command="$(command -v npx || true)"; fi
+fi
+[[ -n "$npx_command" && -x "$npx_command" ]] || fail "npx is not installed"
+if [[ -x "$HOME/.local/bin/node" ]]; then
+  export PATH="$HOME/.local/bin:$PATH"
+fi
+[[ -r "$config_file" ]] || fail "database map is not readable: $config_file"
+[[ -f "$secret_file" && ! -L "$secret_file" && -r "$secret_file" ]] || \
+  fail "credential store must be a readable regular file: $secret_file"
+[[ "$(file_mode "$secret_file")" == "600" ]] || fail "credential store must have mode 0600"
+[[ "$(file_owner "$secret_file")" == "$(id -u)" ]] || fail "credential store must be owned by the current user"
+
+# The map is trusted account configuration: identifiers and routing, never credentials.
+# shellcheck disable=SC1090
+source "$config_file"
+declare -F workbench_database >/dev/null || fail "database map does not define workbench_database"
+declare -F workbench_database_group >/dev/null || fail "database map does not define workbench_database_group"
+
+members="$(workbench_database_group "$group_id")" || fail "unknown database group: $group_id"
+[[ -n "$members" ]] || fail "database group is empty: $group_id"
+
+temporary_root="${TMPDIR:-/tmp}"
+config_dir="$(mktemp -d "${temporary_root%/}/workbench-db-group.XXXXXX")"
+dbhub_config="$config_dir/dbhub.toml"
+chmod 700 "$config_dir"
+umask 077
+
+child_pid=""
+cleanup() {
+  exit_code=$?
+  trap - EXIT INT TERM HUP
+  if [[ -n "$child_pid" ]] && kill -0 "$child_pid" 2>/dev/null; then
+    kill -TERM "$child_pid" 2>/dev/null || true
+    wait "$child_pid" 2>/dev/null || true
+  fi
+  rm -f -- "$dbhub_config"
+  rmdir -- "$config_dir" 2>/dev/null || true
+  exit "$exit_code"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
+: > "$dbhub_config"
+chmod 600 "$dbhub_config"
+seen=" "
+while read -r source_id database_id; do
+  [[ -n "${source_id:-}" ]] || continue
+  [[ "$source_id" =~ ^[a-z0-9][a-z0-9_]*$ ]] || fail "invalid source id: $source_id"
+  [[ "$seen" != *" $source_id "* ]] || fail "duplicate source id: $source_id"
+  seen+="$source_id "
+
+  WORKBENCH_DATABASE_DSN_VAR=""
+  WORKBENCH_DATABASE_NAME=""
+  WORKBENCH_DATABASE_READONLY_USER=""
+  workbench_database "$database_id" || fail "unknown database id: $database_id"
+  [[ "$WORKBENCH_DATABASE_DSN_VAR" =~ ^[A-Z][A-Z0-9_]*$ ]] || fail "$database_id: invalid DSN variable"
+  [[ "$WORKBENCH_DATABASE_DSN_VAR" != *WRITE* ]] || fail "$database_id: write DSNs cannot be registered with MCP"
+
+  dsn="$(read_env_value "$WORKBENCH_DATABASE_DSN_VAR" || true)"
+  [[ -n "$dsn" ]] || fail "$WORKBENCH_DATABASE_DSN_VAR is missing from the credential store"
+  [[ "$dsn" != *$'\n'* && "$dsn" != *$'\r'* ]] || fail "$WORKBENCH_DATABASE_DSN_VAR contains an unsupported newline"
+
+  # Validate the selected identity/database without exposing credentials in argv.
+  DBHUB_DSN="$dsn" DB_EXPECTED_NAME="${WORKBENCH_DATABASE_NAME:-}" \
+    DB_EXPECTED_USER="${WORKBENCH_DATABASE_READONLY_USER:-}" python3 -I - <<'PY' || \
+    fail "$database_id: DSN does not match the configured read-only database identity"
+import os
+from urllib.parse import unquote, urlsplit
+try:
+    value = urlsplit(os.environ["DBHUB_DSN"])
+    assert value.scheme in ("postgres", "postgresql") and value.hostname
+    name, user = os.environ["DB_EXPECTED_NAME"], os.environ["DB_EXPECTED_USER"]
+    assert not name or unquote(value.path.lstrip("/")) == name
+    assert not user or unquote(value.username or "") == user
+except (ValueError, AssertionError):
+    raise SystemExit(1)
+PY
+
+  # DBHub config mode rejects libpq's `prefer`; require TLS without rewriting the store.
+  normalized_dsn="${dsn//sslmode=prefer/sslmode=require}"
+  # Optional account hook, e.g. to reach the database through a local forward.
+  if declare -F workbench_database_dsn_rewrite >/dev/null; then
+    normalized_dsn="$(workbench_database_dsn_rewrite "$normalized_dsn")"
+  fi
+  var="DBHUB_DSN_$(printf '%s' "$source_id" | tr '[:lower:]' '[:upper:]')"
+  export "$var=$normalized_dsn"
+  unset dsn normalized_dsn
+
+  printf '[[sources]]\nid = "%s"\ndsn = "${%s}"\nlazy = true\nquery_timeout = 30\nconnection_timeout = 15\n\n' \
+    "$source_id" "$var" >> "$dbhub_config"
+  printf '[[tools]]\nname = "execute_sql"\nsource = "%s"\nreadonly = true\nmax_rows = 100\n\n[[tools]]\nname = "search_objects"\nsource = "%s"\n\n' \
+    "$source_id" "$source_id" >> "$dbhub_config"
+done <<< "$members"
+
+"$npx_command" -y "$dbhub_package" --config="$dbhub_config" <&0 &
+child_pid=$!
+set +e
+wait "$child_pid"
+child_status=$?
+set -e
+exit "$child_status"
